@@ -66,7 +66,7 @@ hte_data <- function(n, sig2, rho, y_scen = c("a", "b"), z_scen = c("a", "b")){
   
 }
 
-lagrange_sent_2 <- function(coefs, cmat, target, base_weights) {
+lagrange_ext <- function(coefs, cmat, target, base_weights) {
   
   temp <- sum((base_weights)*(cmat %*% coefs - exp(-cmat %*% coefs)))
   out <- -temp + sum(target * coefs)
@@ -74,7 +74,7 @@ lagrange_sent_2 <- function(coefs, cmat, target, base_weights) {
   
 }
 
-esteq_HTE_2 <- function(X, Y, Z, weights, base_weights, target, tau) {
+esteq_ext <- function(X, Y, Z, weights, base_weights, target, tau) {
   
   eq1 <- (2*Z - 1)*base_weights*weights*X
   eq2 <- base_weights*(Z*weights*X - X)
@@ -147,7 +147,7 @@ for (j in 1:iter) {
       v[1:(2*m)] <- v[1:(2*m)] + (2*Z[i] - 1) * q[i]*pweights[i] * (Y[i] - Z[i]*tau) * A[i,]
       v[(2*m+1):(3*m)] <- v[(2*m+1):(3*m)] + (2*Z[i] - 1) * qweights[i]*p[i] * (Y[i] - Z[i]*tau) * X[i,]
       v[3*m + 1] <- v[3*m + 1] - q[i]*p[i]*Z[i]
-      meat <- meat + tcrossprod(esteq_HTE_2(X = X[i,], Y = Y[i], Z = Z[i], weights = p[i], 
+      meat <- meat + tcrossprod(esteq_ext(X = X[i,], Y = Y[i], Z = Z[i], weights = p[i], 
                                             base_weights = q[i], target = b/n, tau = tau_sent[j]))
       
     }
