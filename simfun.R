@@ -92,7 +92,7 @@ cfit_target <- function(cmat,
   if (!is.vector(target))
     stop("target must be a vector")
   
-  fn <- match.fun("lagrange_sent_target")
+  fn <- match.fun("lagrange_target")
   
   # initialize coefs
   if (is.null(coefs_init))
@@ -139,7 +139,7 @@ esteq_target <- function(X, Y, Z, S, weights, base_weights, target, tau) {
   
   eq1 <- S*(2*Z - 1)*base_weights*weights*X
   eq2 <- S*base_weights*(Z*weights*X - X)
-  eq3 <- S*(base_weights*X - target)
+  eq3 <- S*base_weights*X - (1 - S)*X
   eq4 <- (1 - S)*(X - target)
   eq5 <- S*base_weights*weights*(Z*(Y - tau) - (1 - Z)*Y)
   
@@ -148,14 +148,13 @@ esteq_target <- function(X, Y, Z, S, weights, base_weights, target, tau) {
   
 }
 
-lagrange_sent_target <- function(coefs, cmat, target, base_weights) {
+lagrange_target <- function(coefs, cmat, target, base_weights) {
   
   temp <- sum((base_weights)*(cmat %*% coefs - exp(-cmat %*% coefs)))
-  out <- -temp + sum(target * coefs)
+  out <- -temp + sum( target * coefs)
   return(out)
   
 }
-
 
 # Fits the balancing weights using a variety of methods
 simfit <- function(idx = 1, simDat) {
@@ -253,6 +252,11 @@ simfit <- function(idx = 1, simDat) {
     
   }
   
+  # calib 
+  
+  entfit <- calib(X = X1, Z = Z1, target = target, simple = FALSE)
+  entest <- try( calest_pate(obj = entfit, X = X, Y = Y, Z = Z, S = S), silent = TRUE )
+  
   # IOSW
   
   glmdat <- data.frame(S = S, X = X[,-1])
@@ -289,6 +293,22 @@ simfit <- function(idx = 1, simDat) {
   smod <- svyglm(Y1 ~ Z1, design = design, family = gaussian)
   glmrslt <- coef(smod)[2]
   
+  # Calib Result
+  
+  if (inherits(entest, "try-error")){
+    
+    entrslt <- NA
+    entvar <- NA
+    entcp <- NA
+    
+  } else { 
+    
+    entrslt <- entest$tau
+    entvar <- entest$variance
+    entcp <- as.numeric(entrslt - sqrt(entvar)*1.96 <= PATE & entrslt + sqrt(entvar)*1.96 >= PATE)
+    
+  }
+  
   # Outcome Results
   
   outrslt <- mean(g_1 - g_0)
@@ -301,8 +321,8 @@ simfit <- function(idx = 1, simDat) {
   
   # Combine Results
   
-  tau <- c(glmrslt, outrslt, aipwrslt, tau_sent)
-  cp <- cp_sent
+  tau <- c(glmrslt, outrslt, aipwrslt, entrslt, tau_sent)
+  cp <- c(entcp, cp_sent)
   
   return(list(tau = tau, cp = cp, PATE = PATE))
   

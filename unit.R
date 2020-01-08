@@ -2,6 +2,7 @@ library(sandwich)
 library(survey)
 
 source("D:/Github/target-sim/simfun.R")
+source("D:/Dropbox (ColoradoTeam)/Projects/Transportability/Code/calib.R")
 
 iter <- 1000
 n <- 1000
@@ -18,11 +19,11 @@ idx <- 1:iter # simulation iteration index
 estList <- sapply(idx, simfit, simDat = simDat)
 
 tau_tmp <- do.call(rbind, estList[1,])
-cp_tmp <- do.call(c, estList[2,])
+cp_tmp <- do.call(rbind, estList[2,])
 PATE_tmp <- do.call(c, estList[3,])
-colnames(tau_tmp) <- c("GLM", "OUT", "AIPW", "CAL")
+colnames(tau_tmp) <- c("GLM", "OUT", "AIPW", "ENT", "CAL")
 
 tau <- apply(tau_tmp, 2, mean, na.rm = TRUE)
 mcse <- apply(tau_tmp, 2, sd, na.rm = TRUE)
-cp <- mean(cp_tmp)
+cp <- apply(cp_tmp, 2, mean, na.rm = TRUE)
 PATE <- mean(PATE_tmp)
