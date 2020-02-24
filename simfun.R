@@ -187,10 +187,8 @@ simfit <- function(idx = 1, simDat) {
   fit_tmp_f <- cfit(cmat = S*X, target = target, distance = "entropy")
 
   q <- fit_tmp_f$weights
-  # cmat <- cbind(as.matrix((2*Z - 1)*X), as.matrix( Z*X ))
-  # b <- c(rep(0, times = ncol(X)), c(t(X) %*% q))
-  cmat <- cbind(as.matrix((2*Z - 1)*S*X), as.matrix( Z*S*X ), as.matrix((2*Z - 1)*(1 - S)*X), as.matrix( Z*(1 - S)*X ))
-  b <- c(rep(0, times = ncol(X1)), c(t(X1) %*% q[S == 1]), rep(0, times = ncol(X0)), c(t(X0) %*% q[S == 0]))
+  cmat <- cbind(as.matrix((2*Z - 1)*X), as.matrix( Z*X ))
+  b <- c(rep(0, times = ncol(X)), c(t(X) %*% q))
   fit_f <- try( cfit_transport(cmat = cmat, target = b, base_weights = q), silent = TRUE )
 
   if (!inherits(fit_f, "try-error")) {
@@ -201,60 +199,59 @@ simfit <- function(idx = 1, simDat) {
     coefs_1 <- fit_f$coefs
     coefs_2 <- fit_tmp_f$coefs
 
-    cdat <- as.data.frame(cbind(Y0 = Y0, unname(X0[,-1])))
-    m_0 <- predict(lm(Y0 ~ ., data = cdat[Z0 == 0,]), newdata = as.data.frame(unname(X)))
-    m_1 <- predict(lm(Y0 ~ ., data = cdat[Z0 == 1,]), newdata = as.data.frame(unname(X)))
-
     tau_f <- sum(p*q*(2*Z - 1)*Y)/sum(p*q*Z)
-    var_f <- NA
-    cp_f <- NA
 
-  #   dp <- as.vector( -exp(-A %*% coefs_1) )
-  #   dq <- as.vector( -exp(-X %*% coefs_2) )
-  #   U <- matrix(0, ncol = 4*m, nrow = 4*m)
-  #   v <- rep(0, times = 4*m + 1)
-  #   meat <- matrix(0, ncol = 4*m + 1, nrow = 4*m + 1)
-  # 
-  #   for (i in 1:(n_1 + n_0)) {
-  # 
-  #     U[1:(2*m),1:(2*m)] <- U[1:(2*m),1:(2*m)] + S[i]*q[i]*dp[i] * (A[i,] %*% t(A[i,]))
-  #     U[1:m,(2*m + 1):(3*m)] <- U[1:m,(2*m + 1):(3*m)] + S[i]*(2*Z[i] - 1)*dq[i]*p[i] * (X[i,] %*% t(X[i,]))
-  #     U[(m + 1):(2*m),(2*m + 1):(3*m)] <- U[(m + 1):(2*m),(2*m + 1):(3*m)] + S[i]*Z[i]*dq[i]*p[i] * (X[i,] %*% t(X[i,])) - dq[i] * (X[i,] %*% t(X[i,]))
-  #     U[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- U[(2*m + 1):(3*m),(2*m + 1):(3*m)] + S[i]*dq[i]*X[i,] %*% t(X[i,])
-  # 
-  #     U[(2*m + 1):(3*m),(3*m + 1):(4*m)] <- U[(2*m + 1):(3*m),(3*m + 1):(4*m)] + S[i]*diag(-1, m, m)
-  #     U[(3*m + 1):(4*m),(3*m + 1):(4*m)] <- U[(3*m + 1):(4*m),(3*m + 1):(4*m)] + (1 - S[i])*diag(-1, m, m)
-  # 
-  #     v[1:(2*m)] <- v[1:(2*m)] + S[i]*(2*Z[i] - 1)*q[i]*dp[i] * (Y[i] - Z[i]*tau_f) * A[i,]
-  #     v[(2*m+1):(3*m)] <- v[(2*m + 1):(3*m)] + S[i]*(2*Z[i] - 1) * dq[i]*p[i] * (Y[i] - Z[i]*tau_f) * X[i,]
-  #     v[4*m + 1] <- v[4*m + 1] - S[i]*q[i]*p[i]*Z[i]
-  #     meat <- meat + tcrossprod(esteq_transport(X = X[i,], Y = Y[i], Z = Z[i], S = S[i], weights = p[i],
-  #                                               base_weights = q[i], target = target/n_1, tau = tau_f))
-  # 
-  # 
-  #   }
-  # 
-  #   invbread <- matrix(0, nrow = 4*m + 1, ncol = 4*m + 1)
-  #   invbread[1:(4*m),1:(4*m)] <- U
-  #   invbread[4*m + 1,] <- v
-  # 
-  #   bread <- try(solve(invbread), silent = TRUE)
-  # 
-  #   if (inherits(bread, "try-error"))
-  #     bread <- try(MASS::ginv(invbread))
-  # 
-  #   if (inherits(bread, "try-error")) {
-  # 
-  #     var_f <- NA
-  #     cp_f <- NA
-  # 
-  #   } else {
-  # 
-  #     sandwich <- bread %*% meat %*% t(bread)
-  #     var_f <- sandwich[4*m + 1, 4*m + 1]
-  #     cp_f <- as.numeric(tau_f - sqrt(var_f)*1.96 <= PATE & tau_f + sqrt(var_f)*1.96 >= PATE)
-  # 
-  #   }
+    dp <- as.vector( -exp(-A %*% coefs_1) )
+    dq <- as.vector( -exp(-X %*% coefs_2) )
+    U <- matrix(0, ncol = 4*m, nrow = 4*m)
+    v <- rep(0, times = 4*m + 1)
+    meat <- matrix(0, ncol = 4*m + 1, nrow = 4*m + 1)
+
+    for (i in 1:(n_1 + n_0)) {
+
+      U[1:(2*m),1:(2*m)] <- U[1:(2*m),1:(2*m)] + q[i]*dp[i] * (A[i,] %*% t(A[i,]))
+      U[1:m,(2*m + 1):(3*m)] <- U[1:m,(2*m + 1):(3*m)] + 
+        S[i]*(2*Z[i] - 1)*dq[i]*p[i] * (X[i,] %*% t(X[i,]))
+      U[(m + 1):(2*m),(2*m + 1):(3*m)] <- U[(m + 1):(2*m),(2*m + 1):(3*m)] + 
+        S[i]*Z[i]*dq[i]*p[i] * (X[i,] %*% t(X[i,])) - dq[i] * (X[i,] %*% t(X[i,]))
+      U[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- U[(2*m + 1):(3*m),(2*m + 1):(3*m)] + 
+        S[i]*dq[i]*X[i,] %*% t(X[i,])
+
+      U[(2*m + 1):(3*m),(3*m + 1):(4*m)] <- U[(2*m + 1):(3*m),(3*m + 1):(4*m)] + 
+        S[i]*diag(-1, m, m)
+      U[(3*m + 1):(4*m),(3*m + 1):(4*m)] <- U[(3*m + 1):(4*m),(3*m + 1):(4*m)] + 
+        (1 - S[i])*diag(-1, m, m)
+
+      v[1:(2*m)] <- v[1:(2*m)] + S[i]*(2*Z[i] - 1)*q[i]*dp[i] * (Y[i] - Z[i]*tau_f) * A[i,]
+      v[(2*m+1):(3*m)] <- v[(2*m + 1):(3*m)] + S[i]*(2*Z[i] - 1) * dq[i]*p[i] * (Y[i] - Z[i]*tau_f) * X[i,]
+      v[4*m + 1] <- v[4*m + 1] - S[i]*q[i]*p[i]*Z[i]
+      meat <- meat + tcrossprod(esteq_fusion(X = X[i,], Y = Y[i], Z = Z[i], S = S[i], weights = p[i],
+                                             base_weights = q[i], target = target/n_1, tau = tau_f))
+
+
+    }
+
+    invbread <- matrix(0, nrow = 4*m + 1, ncol = 4*m + 1)
+    invbread[1:(4*m),1:(4*m)] <- U
+    invbread[4*m + 1,] <- v
+
+    bread <- try(solve(invbread), silent = TRUE)
+
+    if (inherits(bread, "try-error"))
+      bread <- try(MASS::ginv(invbread))
+
+    if (inherits(bread, "try-error")) {
+
+      var_f <- NA
+      cp_f <- NA
+
+    } else {
+
+      sandwich <- bread %*% meat %*% t(bread)
+      var_f <- sandwich[4*m + 1, 4*m + 1]
+      cp_f <- as.numeric(tau_f - sqrt(var_f)*1.96 <= PATE & tau_f + sqrt(var_f)*1.96 >= PATE)
+
+    }
     
   } else {
 

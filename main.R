@@ -26,8 +26,10 @@ clusterEvalQ(cl, {
   library(survey)
   library(cbal)
   
+  source("D:/Github/target-sim/target.R")
+  source("D:/Github/target-sim/tmle.R")
   source("D:/Github/target-sim/simfun.R")
-  source("D:/Dropbox (ColoradoTeam)/Projects/Transportability/Code/calib.R")
+  source("D:/Github/cbal/R/cbalance.R")
   
 })
 
@@ -95,9 +97,9 @@ out_1 <- matrix("", nrow = length(files), ncol = 10)
 out_2 <- matrix("", nrow = length(files), ncol = 10)
 out_3 <- matrix("", nrow = length(files), ncol = 7)
 
-colnames(out_1) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "GLM", "OUT", "AIPW", "ENT", "CAL")
-colnames(out_2) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "GLM", "OUT", "AIPW", "ENT", "CAL")
-colnames(out_3) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "ENT", "CAL")
+colnames(out_1) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "GLM", "OUT", "TMLE", "CAL_t", "CAL_f")
+colnames(out_2) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "GLM", "OUT", "TMLE", "CAL_t", "CAL_f")
+colnames(out_3) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "TMLE", "CAL_t", "CAL_f")
 j <- 1
 
 for (fdx in files) {
