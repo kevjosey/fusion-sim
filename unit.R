@@ -1,10 +1,13 @@
 library(sandwich)
 library(survey)
 
+source("D:/Github/target-sim/target.R")
+source("D:/Github/target-sim/tmle.R")
 source("D:/Github/target-sim/simfun.R")
-source("D:/Dropbox (ColoradoTeam)/Projects/Transportability/Code/calib.R")
+source("D:/Github/cbal/R/cbalance.R")
 
-iter <- 1000
+
+iter <- 500
 n <- 1000
 sig2 <- 5
 y_scen <- "a"
@@ -21,9 +24,9 @@ estList <- sapply(idx, simfit, simDat = simDat)
 tau_tmp <- do.call(rbind, estList[1,])
 cp_tmp <- do.call(rbind, estList[2,])
 PATE_tmp <- do.call(c, estList[3,])
-colnames(tau_tmp) <- c("GLM", "OUT", "AIPW", "ENT", "CAL")
+colnames(tau_tmp) <- c("GLM", "OUT", "TMLE", "CAL", "FUS")
 
-tau <- apply(tau_tmp, 2, mean, na.rm = TRUE)
+tau <- colMeans(tau_tmp, na.rm = TRUE)
 mcse <- apply(tau_tmp, 2, sd, na.rm = TRUE)
-cp <- apply(cp_tmp, 2, mean, na.rm = TRUE)
+cp <- colMeans(cp_tmp, na.rm = TRUE)
 PATE <- mean(PATE_tmp)
