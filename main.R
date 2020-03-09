@@ -20,16 +20,15 @@ cl <- makeCluster(3, type = "SOCK")
 
 clusterEvalQ(cl, {
   
-  set.seed(06261992)
+  set.seed(09301987)
   
   library(sandwich)
   library(survey)
   library(cbal)
   
-  source("D:/Github/target-sim/target.R")
-  source("D:/Github/target-sim/tmle.R")
-  source("D:/Github/target-sim/simfun.R")
-  source("D:/Github/cbal/R/cbalance.R")
+  source("D:/Github/combine-sim/transport.R")
+  source("D:/Github/combine-sim/tmle.R")
+  source("D:/Github/combine-sim/simfun.R")
   
 })
 
@@ -49,30 +48,34 @@ clusterApply(cl, index, function(i) {
 
   simDat <- replicate(iter, hte_data(n = n, sig2 = sig2, y_scen = y_scen, z_scen = z_scen, s_scen = s_scen))
   
-  datFilename <- paste("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/simData/", 
+  datFilename <- paste("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/simData/", 
                        n, y_scen, z_scen, s_scen, ".RData", sep = "_")
   save(simDat, file = datFilename)
   
   idx <- 1:iter # simulation iteration index
   estList <- sapply(idx, simfit, simDat = simDat)
   
+  PATE <- mean(do.call(c, estList[3,]))
   misc_out <- data.frame(n = rep(n, times = iter),
                          y_scen = rep(y_scen, times = iter),
                          z_scen = rep(z_scen, times = iter),
                          s_scen = rep(s_scen, times = iter),
-                         PATE = do.call(c, estList[3,]),
+                         PATE = rep(PATE, times = iter),
                          stringsAsFactors = FALSE)
   
   tau_tmp <- do.call(rbind, estList[1,])
-  cp_tmp <- do.call(rbind, estList[2,])
-  colnames(tau_tmp) <- c("GLM", "OUT", "AIPW", "ENT", "CAL")
-  names(cp_tmp) <- c("ENT", "CAL")
+  se_tmp <- do.call(rbind, estList[2,])
+  cp_tmp <- matrix(NA, nrow = iter, ncol = 2)
+  cp_tmp[,1] <- as.numeric(tau_tmp[,4] - se_tmp[,1]*1.96 <= PATE & tau_tmp[,4] + se_tmp[,1]*1.96 >= PATE)
+  cp_tmp[,2] <- as.numeric(tau_tmp[,6] - se_tmp[,2]*1.96 <= PATE & tau_tmp[,6] + se_tmp[,2]*1.96 >= PATE)
+  colnames(tau_tmp) <- c("GLM", "OUT", "TMLE", "CAL-T", "ACAL", "CAL-F")
+  names(cp_tmp) <- c("CAL-T", "CAL-F")
   
   tau <- data.frame(misc_out, tau_tmp, stringsAsFactors = FALSE)
   cp <- data.frame(misc_out, cp_tmp, stringsAsFactors = FALSE)
   
-  tauFilename <- paste("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/tauHat/", n, y_scen, z_scen, s_scen, ".RData", sep = "_")
-  coverageFilename <- paste("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/coverageProb/", n, y_scen, z_scen, s_scen, ".RData", sep = "_")
+  tauFilename <- paste("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/", n, y_scen, z_scen, s_scen, ".RData", sep = "_")
+  coverageFilename <- paste("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/coverageProb/", n, y_scen, z_scen, s_scen, ".RData", sep = "_")
   
   save(tau, file = tauFilename)
   save(cp, file = coverageFilename)
@@ -89,17 +92,17 @@ stop - start
 library(ggplot2)
 library(gridExtra)
 
-dir_1 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/tauHat/"
-dir_2 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/coverageProb/"
+dir_1 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/"
+dir_2 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/coverageProb/"
 
 files <- list.files(dir_1)
-out_1 <- matrix("", nrow = length(files), ncol = 10)
-out_2 <- matrix("", nrow = length(files), ncol = 10)
+out_1 <- matrix("", nrow = length(files), ncol = 11)
+out_2 <- matrix("", nrow = length(files), ncol = 11)
 out_3 <- matrix("", nrow = length(files), ncol = 7)
 
-colnames(out_1) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "GLM", "OUT", "TMLE", "CAL_t", "CAL_f")
-colnames(out_2) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "GLM", "OUT", "TMLE", "CAL_t", "CAL_f")
-colnames(out_3) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "TMLE", "CAL_t", "CAL_f")
+colnames(out_1) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "GLM", "OUT", "TMLE", "CAL-T", "ACAL", "CAL-F")
+colnames(out_2) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "GLM", "OUT", "TMLE", "CAL-T", "ACAL", "CAL-F")
+colnames(out_3) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "CAL-T", "CAL-F")
 j <- 1
 
 for (fdx in files) {
@@ -119,7 +122,7 @@ for (fdx in files) {
   est_se <- sapply(1:length(est), function(i,...) 
     paste(round(est[i], 2), " (", round(se[i], 2), ")", sep = ""))
   
-  cover <- round(mean(cp[,6], na.rm = TRUE), 3)
+  cover <- round(colMeans(cp[,6:7], na.rm = TRUE), 3)
   PATE <- round(mean(tau[,5]), 2)
   
   mse <- apply(tau[,6:ncol(tau)], 2, function(x, PATE) mean((x - PATE)^2, na.rm = TRUE), PATE = PATE)
@@ -129,13 +132,13 @@ for (fdx in files) {
   
   out_1[j,6:ncol(out_1)] <- est_se
   out_2[j,6:ncol(out_2)] <- mse_bias
-  out_3[j,6] <- cover
+  out_3[j,6:ncol(out_3)] <- cover
   
   j <- j + 1
   
 }
 
-load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/tauHat/_1000_a_a_a_.RData")
+load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_a_a_a_.RData")
 dat1 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
 dat1$ind <- factor(dat1$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
 p1 <- ggplot(dat1) + 
@@ -149,7 +152,7 @@ p1 <- ggplot(dat1) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
-load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/tauHat/_1000_a_b_a_.RData")
+load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_a_b_a_.RData")
 dat2 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
 dat2$ind <- factor(dat2$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
 p2 <- ggplot(dat2) + 
@@ -163,7 +166,7 @@ p2 <- ggplot(dat2) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
-load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/tauHat/_1000_b_a_a_.RData")
+load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_b_a_a_.RData")
 dat3 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
 dat3$ind <- factor(dat3$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
 p3 <- ggplot(dat3) + 
@@ -177,7 +180,7 @@ p3 <- ggplot(dat3) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
-load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/tauHat/_1000_b_b_a_.RData")
+load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_b_b_a_.RData")
 dat4 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
 dat4$ind <- factor(dat4$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
 p4 <- ggplot(dat4) + 
@@ -191,7 +194,7 @@ p4 <- ggplot(dat4) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
-load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/tauHat/_1000_b_a_b_.RData")
+load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_b_a_b_.RData")
 dat5 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
 dat5$ind <- factor(dat5$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
 p5 <- ggplot(dat5) + 
@@ -205,7 +208,7 @@ p5 <- ggplot(dat5) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
-load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/cgen/tauHat/_1000_a_b_b_.RData")
+load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_a_b_b_.RData")
 dat6 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
 dat6$ind <- factor(dat6$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
 p6 <- ggplot(dat6) + 
@@ -219,13 +222,13 @@ p6 <- ggplot(dat6) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
-png("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Output/cgen/Figures/ATE_plot.png", 
-    width = 1200, 
-    height = 600,
-    res = 100, 
+png("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Output/fusion/Figures/ATE_plot.png", 
+    width = 3000, 
+    height = 3000,
+    res = 300, 
     units = "px")
 
-grid.arrange(p1, p2, p3, ncol = 3, nrow = 1)
+grid.arrange(p1, p3, p6, p4, ncol = 2, nrow = 2)
 
 dev.off()
 
@@ -241,9 +244,9 @@ out_3 <- as.data.frame(out_3)
 out_3[,1] <- as.numeric(as.character(out_3[,1]))
 out_3 <- out_3[order(out_3$n, out_3$y_scen, out_3$z_scen, out_3$s_scen),]
 
-filename1 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Output/cgen/Tables/estimates.csv"
-filename2 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Output/cgen/Tables/mse_bias.csv"
-filename3 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Output/cgen/Tables/coverageProbs.csv"
+filename1 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Output/fusion/Tables/estimates.csv"
+filename2 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Output/fusion/Tables/mse_bias.csv"
+filename3 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Output/fusion/Tables/coverageProbs.csv"
 
 write.csv(out_1, file = filename1)
 write.csv(out_2, file = filename2)
