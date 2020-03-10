@@ -23,31 +23,39 @@ hte_data <- function(n, sig2 = 5, y_scen = c("a", "b"), z_scen = c("a", "b"), s_
   u3 <- as.numeric(scale((x1*x3/25 + 0.6)^3))
   u4 <- as.numeric(scale((x2 + x4 + 20)^2))
   
+  v1 <- stats::rnorm(n, 0, 1)
+  v2 <- stats::rnorm(n, 0, 1)
+  v3 <- stats::rnorm(n, 0, 1)
+  v4 <- stats::rnorm(n, 0, 1)
+  
   X <- cbind(int = rep(1, n), x1, x2, x3, x4)
   U <- cbind(int = rep(1, n), u1, u2, u3, u4)
+  V <- cbind(int = rep(1, n), v1, v2, v3, v4)
   
   # effect coefficients
   beta <- c(210, 27.4, 13.7, 13.7, 13.7)
   alpha <- c(20, -13.7, 0, 0, 13.7)
-  lambda <- c(0, -1, 0.5, -0.25, -0.1)
+  lambda <- c(0.1, -1, 0.5, -0.25, -0.1)
+  delta <- c(0, 1, 0.5, 0.4, -0.2)
   gamma <- c(0, 1, 0.3, -0.4, 0.2)
-  
-  # propensity score
-  if (z_scen == "b") {
-    e_X <- 1/(1 + exp( -( U %*% lambda) ) )
-  } else { # z_scen == "a"
-    e_X <- 1/(1 + exp( -( X %*% lambda) ) )
-  }
   
   # Trial Participation
   if (s_scen == "b") {
     f_X <- 1/(1 + exp( -( U %*% gamma) ) )
   } else { # s_scen == "a"
     f_X <- 1/(1 + exp( -( X %*% gamma) ) )
-  }  
+  } 
+  
+  s <- rbinom(n, 1, f_X)
+  
+  # propensity score
+  if (z_scen == "b") {
+    e_X <- 1/(1 + exp( -( U %*% lambda) ) )
+  } else { # z_scen == "a"
+    e_X <- s/(1 + exp( -( U %*% lambda) ) ) + (1 - s)/(1 + exp( -( X %*% delta) ) )
+  }
   
   z <- rbinom(n, 1, e_X)
-  s <- rbinom(n, 1, f_X)
   
   if (y_scen == "b") {
     W <- U

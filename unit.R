@@ -1,16 +1,16 @@
 library(sandwich)
 library(survey)
 
-source("D:/Github/combine-sim/transport.R")
-source("D:/Github/combine-sim/tmle.R")
-source("D:/Github/combine-sim/simfun.R")
+source("~/Github/combine-sim/transport.R")
+source("~/Github/combine-sim/tmle.R")
+source("~/Github/combine-sim/simfun.R")
 
 iter <- 500
-n <- 1000
+n <- 10000
 sig2 <- 5
-y_scen <- "a"
-z_scen <- "b"
-s_scen <- "b"
+y_scen <- "b"
+z_scen <- "a"
+s_scen <- "a"
 
 set.seed(09301987)
 
