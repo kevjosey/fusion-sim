@@ -89,26 +89,28 @@ cfit <- function(cmat, target,
   
 }
 
-esteq_transport <- function(X, Y, Z, S, weights, base_weights, n_1, n_0, tau) {
+esteq_transport <- function(X, Y, Z, S, weights, base_weights, theta, tau) {
   
-  eq1 <- S*(2*Z - 1)*base_weights*weights*X
-  eq2 <- S*base_weights*(Z*weights*X - X)
-  eq3 <- S*base_weights*X - (n_1/n_0)*(1 - S)*X
-  eq4 <- S*base_weights*weights*(Z*(Y - tau) - (1 - Z)*Y)
+  eq1 <- S*(base_weights*weights*Z*X - theta)
+  eq2 <- S*(base_weights*weights*(1 - Z)*X - theta)
+  eq3 <- S*(base_weights*X - theta)
+  eq4 <- (1 - S)*(X - theta)
+  eq5 <- S*base_weights*weights*(Z*(Y - tau) - (1 - Z)*Y)
   
-  eq <- c(eq1, eq2, eq3, eq4) 
+  eq <- c(eq1, eq2, eq3, eq4, eq5) 
   return(eq)
   
 }
 
-esteq_fusion <- function(X, Y, Z, S, weights, base_weights, n_1, n_0, tau) {
+esteq_fusion <- function(X, Y, Z, S, weights, base_weights, theta, tau) {
   
-  eq1 <- (2*Z - 1)*base_weights*weights*X
-  eq2 <- base_weights*(Z*weights*X - X)
-  eq3 <- S*base_weights*X - (n_1/n_0)*(1 - S)*X
-  eq4 <- base_weights*weights*(Z*(Y - tau) - (1 - Z)*Y)
+  eq1 <- base_weights*weights*Z*X - theta
+  eq2 <- base_weights*weights*(1 - Z)*X - theta
+  eq3 <- S*(base_weights*X - theta)
+  eq4 <- (1 - S)*(X - theta)
+  eq5 <- base_weights*weights*(Z*(Y - tau) - (1 - Z)*Y)
   
-  eq <- c(eq1, eq2, eq3, eq4) 
+  eq <- c(eq1, eq2, eq3, eq4, eq5) 
   return(eq)
   
 }

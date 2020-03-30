@@ -5,7 +5,7 @@
 
 library(snow)
 
-iter <- 1000
+iter <- 10000
 n <- c(1000, 2000)
 y_scen <- c("a", "b")
 z_scen <- c("a", "b")
@@ -20,7 +20,7 @@ cl <- makeCluster(3, type = "SOCK")
 
 clusterEvalQ(cl, {
   
-  set.seed(09301987)
+  set.seed(09221987)
   
   library(sandwich)
   library(survey)
@@ -66,9 +66,9 @@ clusterApply(cl, index, function(i) {
   tau_tmp <- do.call(rbind, estList[1,])
   se_tmp <- do.call(rbind, estList[2,])
   cp_tmp <- matrix(NA, nrow = iter, ncol = 2)
-  cp_tmp[,1] <- as.numeric(tau_tmp[,4] - se_tmp[,1]*1.96 <= PATE & tau_tmp[,4] + se_tmp[,1]*1.96 >= PATE)
-  cp_tmp[,2] <- as.numeric(tau_tmp[,6] - se_tmp[,2]*1.96 <= PATE & tau_tmp[,6] + se_tmp[,2]*1.96 >= PATE)
-  colnames(tau_tmp) <- c("GLM", "OUT", "TMLE", "CAL-T", "ACAL", "CAL-F")
+  cp_tmp[,1] <- as.numeric(tau_tmp[,3] - se_tmp[,1]*1.96 <= PATE & tau_tmp[,3] + se_tmp[,1]*1.96 >= PATE)
+  cp_tmp[,2] <- as.numeric(tau_tmp[,5] - se_tmp[,2]*1.96 <= PATE & tau_tmp[,5] + se_tmp[,2]*1.96 >= PATE)
+  colnames(tau_tmp) <- c("TMLE", "ACAL-T", "CAL-T", "ACAL-F", "CAL-F")
   names(cp_tmp) <- c("CAL-T", "CAL-F")
   
   tau <- data.frame(misc_out, tau_tmp, stringsAsFactors = FALSE)
@@ -96,12 +96,12 @@ dir_1 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/"
 dir_2 <- "D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/coverageProb/"
 
 files <- list.files(dir_1)
-out_1 <- matrix("", nrow = length(files), ncol = 11)
-out_2 <- matrix("", nrow = length(files), ncol = 11)
+out_1 <- matrix("", nrow = length(files), ncol = 10)
+out_2 <- matrix("", nrow = length(files), ncol = 10)
 out_3 <- matrix("", nrow = length(files), ncol = 7)
 
-colnames(out_1) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "GLM", "OUT", "TMLE", "CAL-T", "ACAL", "CAL-F")
-colnames(out_2) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "GLM", "OUT", "TMLE", "CAL-T", "ACAL", "CAL-F")
+colnames(out_1) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "TMLE", "ACAL-T", "CAL-T", "ACAL-F", "CAL-F")
+colnames(out_2) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "TMLE", "ACAL-T", "CAL-T", "ACAL-F", "CAL-F")
 colnames(out_3) <- c("n", "y_scen", "z_scen", "s_scen", "PATE", "CAL-T", "CAL-F")
 j <- 1
 
@@ -118,6 +118,9 @@ for (fdx in files) {
   out_1[j,5] <- out_2[j,5] <- out_3[j,5] <- round(mean(tau[,5]), 2)
   
   est <- apply(tau[,6:ncol(tau)], 2, mean, na.rm = TRUE)
+  
+  #Replace outliers according to temp_range
+  
   se <- apply(tau[,6:ncol(tau)], 2, sd, na.rm = TRUE)
   est_se <- sapply(1:length(est), function(i,...) 
     paste(round(est[i], 2), " (", round(se[i], 2), ")", sep = ""))
@@ -125,8 +128,8 @@ for (fdx in files) {
   cover <- round(colMeans(cp[,6:7], na.rm = TRUE), 3)
   PATE <- round(mean(tau[,5]), 2)
   
-  mse <- apply(tau[,6:ncol(tau)], 2, function(x, PATE) mean((x - PATE)^2, na.rm = TRUE), PATE = PATE)
-  bias <- apply(tau[,6:ncol(tau)], 2, function(x, PATE) mean((x - PATE), na.rm = TRUE), PATE = PATE)
+  mse <- colMeans((tau[,6:ncol(tau)] - PATE)^2, na.rm = TRUE)
+  bias <- colMeans(tau[,6:ncol(tau)] - PATE, na.rm = TRUE)
   mse_bias <- sapply(1:length(mse), function(i,...) 
     paste(round(mse[i], 2), " (", round(bias[i], 2), ")", sep = ""))
   
@@ -138,89 +141,90 @@ for (fdx in files) {
   
 }
 
-load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_a_a_a_.RData")
-dat1 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
-dat1$ind <- factor(dat1$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
+load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_a_a_b_.RData")
+dat1 <- stack(as.data.frame(tau[,6:ncol(tau)]))
+dat1$ind <- factor(dat1$ind, labels = c("TMLE", "ACAL-T", "CAL-T", "ACAL-F", "CAL-F"))
 p1 <- ggplot(dat1) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("PATE") +
-  ylim(0, 50)  +
+  ylim(-8, -2)  +
   xlab("") +
-  ggtitle("outcome: a, treatment: a, sampling: a") +
-  geom_hline(yintercept = 24.25, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
+  ggtitle("outcome: a, treatment: a, sampling: b") +
+  geom_hline(yintercept = -4.71, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
   guides(fill =  FALSE) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
 load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_a_b_a_.RData")
-dat2 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
-dat2$ind <- factor(dat2$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
+dat2 <- stack(as.data.frame(tau[,6:ncol(tau)]))
+dat2$ind <- factor(dat2$ind, labels = c("TMLE", "ACAL-T", "CAL-T", "ACAL-F", "CAL-F"))
 p2 <- ggplot(dat2) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("PATE") +
-  ylim(0, 50) +
+  ylim(-8, -2) +
   xlab("") +
   ggtitle("outcome: a, treatment: b, sampling: a") +
-  geom_hline(yintercept = 24.9, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
+  geom_hline(yintercept = -5.04, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
+  guides(fill =  FALSE) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_a_b_b_.RData")
+dat3 <- stack(as.data.frame(tau[,6:ncol(tau)]))
+dat3$ind <- factor(dat3$ind, labels = c("TMLE", "ACAL-T", "CAL-T", "ACAL-F", "CAL-F"))
+p3 <- ggplot(dat3) + 
+  geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
+  ylab("PATE") +
+  ylim(-8, -2)  +
+  xlab("") +
+  ggtitle("outcome: a, treatment: b, sampling: b") +
+  geom_hline(yintercept = -4.71, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
   guides(fill =  FALSE) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
 load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_b_a_a_.RData")
-dat3 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
-dat3$ind <- factor(dat3$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
-p3 <- ggplot(dat3) + 
-  geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
-  ylab("PATE") +
-  ylim(0, 50)  +
-  xlab("") +
-  ggtitle("outcome: b, treatment: a, sampling: a") +
-  geom_hline(yintercept = 23.5, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
-  guides(fill =  FALSE) +
-  theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5))
-
-load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_b_b_a_.RData")
-dat4 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
-dat4$ind <- factor(dat4$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
+dat4 <- stack(as.data.frame(tau[,6:ncol(tau)]))
+dat4$ind <- factor(dat4$ind, labels = c("TMLE", "ACAL-T", "CAL-T", "ACAL-F", "CAL-F"))
 p4 <- ggplot(dat4) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("PATE") +
-  ylim(0, 50)  +
+  ylim(-8, -2)  +
   xlab("") +
-  ggtitle("outcome: b, treatment: b, sampling: a") +
-  geom_hline(yintercept = 23.5, colour = "red", linetype = 3, show.legend = FALSE) + 
+  ggtitle("outcome: b, treatment: a, sampling: a") +
+  geom_hline(yintercept = -4.97, colour = "red", linetype = 3, show.legend = FALSE) + 
   guides(fill =  FALSE) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
 load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_b_a_b_.RData")
-dat5 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
-dat5$ind <- factor(dat5$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
+dat5 <- stack(as.data.frame(tau[,6:ncol(tau)]))
+dat5$ind <- factor(dat5$ind, labels = c("TMLE", "ACAL-T", "CAL-T", "ACAL-F", "CAL-F"))
 p5 <- ggplot(dat5) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("PATE") +
-  ylim(0, 50)  +
+  ylim(-8, -2)  +
   xlab("") +
   ggtitle("outcome: b, treatment: a, sampling: b") +
+  geom_hline(yintercept = -4.92, colour = "red", linetype = 3, show.legend = FALSE) + 
   guides(fill =  FALSE) +
-  geom_hline(yintercept = 23, colour = "red", linetype = 3, show.legend = FALSE) + 
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
-load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_a_b_b_.RData")
-dat6 <- stack(as.data.frame(tau[,6:ncol(tau)])[,-4])
-dat6$ind <- factor(dat6$ind, labels = c("IOS", "OM", "AIOS", "CAL"))
+load("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Data/fusion/tauHat/_1000_b_b_a_.RData")
+dat6 <- stack(as.data.frame(tau[,6:ncol(tau)]))
+dat6$ind <- factor(dat6$ind, labels = c("TMLE", "ACAL-T", "CAL-T", "ACAL-F", "CAL-F"))
 p6 <- ggplot(dat6) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("PATE") +
-  ylim(0, 50)  +
+  ylim(-8, -2)  +
   xlab("") +
-  ggtitle("outcome: a, treatment: b, sampling: b") +
-  geom_hline(yintercept = 24.3, colour = "red", linetype = 3, show.legend = FALSE) + 
+  ggtitle("outcome: b, treatment: b, sampling: a") +
+  geom_hline(yintercept = -4.97, colour = "red", linetype = 3, show.legend = FALSE) + 
   guides(fill =  FALSE) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
+
 
 png("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Output/fusion/Figures/ATE_plot.png", 
     width = 3000, 
@@ -228,7 +232,7 @@ png("D:/Dropbox (ColoradoTeam)/JoseyDissertation/Output/fusion/Figures/ATE_plot.
     res = 300, 
     units = "px")
 
-grid.arrange(p1, p3, p6, p4, ncol = 2, nrow = 2)
+grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 2, nrow = 3)
 
 dev.off()
 

@@ -1,12 +1,12 @@
 library(sandwich)
 library(survey)
 
-source("~/Github/combine-sim/transport.R")
-source("~/Github/combine-sim/tmle.R")
-source("~/Github/combine-sim/simfun.R")
+source("D:/Github/combine-sim/transport.R")
+source("D:/Github/combine-sim/tmle.R")
+source("D:/Github/combine-sim/simfun.R")
 
-iter <- 500
-n <- 10000
+iter <- 1000
+n <- 1000
 sig2 <- 5
 y_scen <- "b"
 z_scen <- "a"
@@ -22,12 +22,14 @@ estList <- sapply(idx, simfit, simDat = simDat)
 tau_tmp <- do.call(rbind, estList[1,])
 se_tmp <- do.call(rbind, estList[2,])
 PATE_tmp <- do.call(c, estList[3,])
-colnames(tau_tmp) <- c("OUT", "TMLE", "CAL-T", "ACAL", "CAL-F")
+colnames(tau_tmp) <- c("TMLE", "ACAL-T", "CAL-T", "ACAL-F", "CAL-F")
 
 tau <- colMeans(tau_tmp, na.rm = TRUE)
 mcse <- apply(tau_tmp, 2, sd, na.rm = TRUE)
 se <- colMeans(se_tmp, na.rm = TRUE)
 PATE <- mean(PATE_tmp)
+
+colMeans(tau_tmp - PATE, na.rm = T)
 
 cp_tmp <- matrix(NA, nrow = iter, ncol = 2)
 cp_tmp[,1] <- as.numeric(tau_tmp[,3] - se_tmp[,1]*1.96 <= PATE & tau_tmp[,4] + se_tmp[,1]*1.96 >= PATE)
