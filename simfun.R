@@ -14,14 +14,14 @@ hte_data <- function(n, sig2 = 5, y_scen = c("a", "b"), z_scen = c("a", "b"), s_
   # covariates
   x1 <- stats::rnorm(n, 0, 1)
   x2 <- stats::rnorm(n, 0, 1)
-  x3 <- stats::rexp(n, 1)
-  x4 <- stats::rexp(n, 1)
+  x3 <- stats::rnorm(n, 0, 1)
+  x4 <- stats::rnorm(n, 0, 1)
   
   # transformed predictors
-  u1 <- as.numeric(scale(exp(2*(x1 + x4))))
-  u2 <- as.numeric(scale((x1 + x2)^2))
-  u3 <- as.numeric(scale(log((x2*x3)^2)))
-  u4 <- as.numeric(scale(sqrt(x3*x4)))
+  u1 <- as.numeric(scale(exp((x1 + x4))))
+  u2 <- as.numeric(scale((x1 + x3)^2))
+  u3 <- as.numeric(scale(abs((x2*x3))))
+  u4 <- as.numeric(scale((x2 + x4)^3))
   
   x1 <- as.numeric(scale(x1))
   x2 <- as.numeric(scale(x2))
@@ -40,11 +40,11 @@ hte_data <- function(n, sig2 = 5, y_scen = c("a", "b"), z_scen = c("a", "b"), s_
   # V <- cbind(int = rep(1, n), v1, v2, v3, v4)
   
   # coefficients
-  beta <- c(10, -1, -2, 2, 1)
-  alpha <- c(-5, 2, -1, 1, -2)
-  lambda <- c(0, -0.25, 0.75, -0.75, 0.25)
-  delta <- c(0, -0.75, -0.25, 0.25, 0.75)
-  gamma <- c(0, 0.5, -0.5, -0.5, 0.5)
+  beta <- c(20, 5, 5, 5, 5)
+  alpha <- c(10, 5, 10, 5, 10)
+  lambda <- c(0, 0, 1, -0.5, 0.5)
+  delta <- c(0, -0.5, 0, 0.5, 1)
+  gamma <- c(0, -0.5, -1, -0.5, 0.5)
   
   # Trial Participation
   if (s_scen == "b") {
@@ -110,6 +110,8 @@ simfit <- function(idx = 1, simDat) {
   X <- dat$X
   X1 <- dat$X[S == 1,]
   X0 <- dat$X[S == 0,]
+  U1 <- dat$U[S == 1,]
+  U0 <- dat$U[S == 0,]
   
   n_1 <- sum(S)
   n_0 <- sum(1 - S)
@@ -118,154 +120,27 @@ simfit <- function(idx = 1, simDat) {
   
   theta <- colMeans(X0)
   
-  R <- as.matrix(S*X)
-  fit_tmp <- cfit(cmat = R, target = n_1*theta, distance = "entropy")
-  q <- fit_tmp$weights
-  
   # Calibration - Transport
   
   A <- cbind(as.matrix(S*Z*X), as.matrix( S*(1 - Z)*X ))
-  b <- c(c(t(R) %*% q), c(t(R) %*% q))
-  fit_t <- try( cfit(cmat = A, target = b, base_weights = q, distance = "transport"), silent = TRUE )
-  
-  if (!inherits(fit_t, "try-error")) {
-    
-    p <- fit_t$weights
-    coefs_1 <- fit_t$coefs
-    coefs_2 <- fit_tmp$coefs
-    
-    cal_t <- sum(S*(2*Z - 1)*p*q*Y)/sum(S*p*q*Z)
-    
-    dp <- as.vector( -exp(-A %*% coefs_1) )
-    dq <- as.vector( -exp(-R %*% coefs_2) )
-    U <- matrix(0, ncol = 4*m, nrow = 4*m)
-    v <- rep(0, times = 4*m + 1)
-    meat <- matrix(0, ncol = 4*m + 1, nrow = 4*m + 1)
-    
-    for (i in 1:(n_1 + n_0)) {
-      
-      U[1:(2*m),1:(2*m)] <- U[1:(2*m),1:(2*m)] + q[i]*dp[i] * A[i,] %*% t(A[i,])
-      
-      U[1:m,(2*m + 1):(3*m)] <- U[1:m,(2*m + 1):(3*m)] + 
-        S[i]*dq[i]*p[i]*Z[i]*X[i,] %*% t(R[i,])
-      U[(m + 1):(2*m),(2*m + 1):(3*m)] <- U[(m + 1):(2*m),(2*m + 1):(3*m)] +
-        S[i]*dq[i]*p[i]*(1 - Z[i])*X[i,] %*% t(R[i,])
-      U[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- U[(2*m + 1):(3*m),(2*m + 1):(3*m)] + 
-        S[i]*dq[i] * X[i,] %*% t(R[i,])
-      
-      U[1:m,(3*m + 1):(4*m)] <- U[1:m,(3*m + 1):(4*m)] + 
-        diag(-S[i], m, m)
-      U[(m + 1):(2*m),(3*m + 1):(4*m)] <- U[(m + 1):(2*m),(3*m + 1):(4*m)] +
-        diag(-S[i], m, m)
-      U[(2*m + 1):(3*m),(3*m + 1):(4*m)] <- U[(2*m + 1):(3*m),(3*m + 1):(4*m)] + 
-        diag(-S[i], m, m)
-      
-      U[(3*m + 1):(4*m), (3*m + 1):(4*m)] <- U[(3*m + 1):(4*m), (3*m + 1):(4*m)] + diag(-(1 - S[i]), m, m)
-      
-      v[1:(2*m)] <- v[1:(2*m)] + S[i]*q[i]*dp[i] * (2*Z[i] - 1)*(Y[i] - Z[i]*cal_t)*A[i,]
-      v[(2*m+1):(3*m)] <- v[(2*m + 1):(3*m)] + S[i]*dq[i]*p[i]*(2*Z[i] - 1)*(Y[i] - Z[i]*cal_t)*R[i,]
-      v[4*m + 1] <- v[4*m + 1] - S[i]*q[i]*p[i]*Z[i]
-      meat <- meat + tcrossprod(esteq_transport(X = X[i,], Y = Y[i], Z = Z[i], S = S[i], 
-                                                weights = p[i], base_weights = q[i], theta = theta, tau = cal_t))
-      
-      
-    }
-    
-    invbread <- matrix(0, nrow = 4*m + 1, ncol = 4*m + 1)
-    invbread[1:(4*m),1:(4*m)] <- U
-    invbread[4*m + 1,] <- v
-    
-    bread <- try(solve(invbread), silent = TRUE)
-    
-    if (inherits(bread, "try-error"))
-      var_t <- NA
-    
-    else {
-      
-      sandwich <- bread %*% meat %*% t(bread)
-      var_t <- sandwich[4*m + 1, 4*m + 1]
-      
-    }
-    
-  } else {
-    
-    cal_t <- NA
-    var_t <- NA
-    
-  }
+  b <- c(n_1*theta, n_1*theta)
+  fit_t <- cfit(cmat = A, target = b, distance = "entropy")
+  est_t <- transport_estimate(obj = fit_t, S = S, X = X, Z1 = Z1, Y1 = Y1)
+  cal_t <- est_t$estimate
+  var_t <- est_t$variance
   
   # Calibration - Fusion
-
+  
+  R <- as.matrix(S*X)
+  fit_base <- cfit(cmat = R, target = n_1*theta, distance = "entropy")
+  q <- fit_base$weights
+  
   A <- cbind(as.matrix(Z*X), as.matrix( (1 - Z)*X ))
-  b <- c(c(t(X) %*% q), c(t(X) %*% q))
-  fit_f <- try( cfit(cmat = A, target = b, base_weights = q, distance = "transport"), silent = TRUE )
-
-  if (!inherits(fit_f, "try-error")) {
-    
-    p <- fit_f$weights
-    coefs_1 <- fit_f$coefs
-    coefs_2 <- fit_tmp$coefs
-
-    cal_f <- sum(p*q*(2*Z - 1)*Y)/sum(p*q*Z)
-
-    dp <- as.vector( -exp(-A %*% coefs_1) )
-    dq <- as.vector( -exp(-R %*% coefs_2) )
-    U <- matrix(0, ncol = 4*m, nrow = 4*m)
-    v <- rep(0, times = 4*m + 1)
-    meat <- matrix(0, ncol = 4*m + 1, nrow = 4*m + 1)
-
-    for (i in 1:(n_1 + n_0)) {
-      
-      U[1:(2*m),1:(2*m)] <- U[1:(2*m),1:(2*m)] + q[i]*dp[i] * A[i,] %*% t(A[i,])
-      
-      U[1:m,(2*m + 1):(3*m)] <- U[1:m,(2*m + 1):(3*m)] + 
-        dq[i]*p[i]*Z[i]*X[i,] %*% t(R[i,])
-      U[(m + 1):(2*m),(2*m + 1):(3*m)] <- U[(m + 1):(2*m),(2*m + 1):(3*m)] +
-        dq[i]*p[i]*(1 - Z[i])*X[i,] %*% t(R[i,])
-      U[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- U[(2*m + 1):(3*m),(2*m + 1):(3*m)] + 
-        dq[i] * X[i,] %*% t(R[i,])
-      
-      U[1:m,(3*m + 1):(4*m)] <- U[1:m,(3*m + 1):(4*m)] + 
-        diag(-1, m, m)
-      U[(m + 1):(2*m),(3*m + 1):(4*m)] <- U[(m + 1):(2*m),(3*m + 1):(4*m)] +
-        diag(-1, m, m)
-      U[(2*m + 1):(3*m),(3*m + 1):(4*m)] <- U[(2*m + 1):(3*m),(3*m + 1):(4*m)] + 
-        diag(-S[i], m, m)
-      
-      U[(3*m + 1):(4*m), (3*m + 1):(4*m)] <- U[(3*m + 1):(4*m), (3*m + 1):(4*m)] + diag(-(1 - S[i]), m, m)
-      
-      v[1:(2*m)] <- v[1:(2*m)] + q[i]*dp[i] * (2*Z[i] - 1)*(Y[i] - Z[i]*cal_f)*A[i,]
-      v[(2*m+1):(3*m)] <- v[(2*m + 1):(3*m)] + dq[i]*p[i]*(2*Z[i] - 1)*(Y[i] - Z[i]*cal_f)*R[i,]
-      v[4*m + 1] <- v[4*m + 1] - q[i]*p[i]*Z[i]
-      meat <- meat + tcrossprod(esteq_fusion(X = X[i,], Y = Y[i], Z = Z[i], S = S[i], 
-                                             weights = p[i], base_weights = q[i], 
-                                             theta = theta, tau = cal_f))
-
-
-    }
-
-    invbread <- matrix(0, nrow = 4*m + 1, ncol = 4*m + 1)
-    invbread[1:(4*m),1:(4*m)] <- U
-    invbread[4*m + 1,] <- v
-
-    bread <- try(solve(invbread), silent = TRUE)
-
-    if (inherits(bread, "try-error"))
-      var_f <- NA
-    
-    else {
-
-      sandwich <- bread %*% meat %*% t(bread)
-      var_f <- sandwich[4*m + 1, 4*m + 1]
-
-    }
-    
-  } else {
-
-    cal_f <- NA
-    var_f <- NA
-
-  }
+  b <- c(n*theta, n*theta)
+  fit_f <- cfit(cmat = A, target = b, base_weights = q, distance = "fusion")
+  est_f <- fusion_estimate(obj = fit_f, base_obj = fit_base, S = S, X = X, Z = Z, Y = Y)
+  cal_f <- est_f$estimate
+  var_f <- est_f$variance
   
   # TMLE
   
@@ -275,7 +150,8 @@ simfit <- function(idx = 1, simDat) {
   
   W <- data.frame(X[,-1], S = S, Y = Y, Z = Z)
   
-  tmleest <- try( tmle(S = S, Y = Y, Z = Z, data = as.data.frame(W), nsitemodel = smod, nzmodel = zmod, noutmodel = ymod), silent = TRUE )
+  tmleest <- try( tmle(S = S, Y = Y, Z = Z, data = as.data.frame(W), 
+                       nsitemodel = smod, nzmodel = zmod, noutmodel = ymod, fusion = FALSE), silent = TRUE )
   
   # Augmented Calibration - Transport
   
@@ -284,7 +160,7 @@ simfit <- function(idx = 1, simDat) {
   m_1 <- predict(lm(Y1 ~ ., data = cdat1[Z1 == 1,]), newdata = as.data.frame(unname(X)))
   
   baldat <- data.frame(Z = Z1, X = X1[,-1])
-  balfit <- glm(Z ~ ., data = baldat, family = binomial(link = "logit"))
+  balfit <- glm(Z ~ ., data = baldat, family = quasibinomial(link = "logit"), weights = q[S == 1])
   balprob <- balfit$fitted.values
   balwts <- ifelse(Z1 == 1, 1/balprob, 1/(1 - balprob))
   ipw <- rep(1, times = n)

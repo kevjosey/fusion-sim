@@ -26,9 +26,9 @@ clusterEvalQ(cl, {
   library(survey)
   library(cbal)
   
-  source("D:/Github/combine-sim/transport.R")
-  source("D:/Github/combine-sim/tmle.R")
-  source("D:/Github/combine-sim/simfun.R")
+  source("D:/Github/fusion-sim/transport.R")
+  source("D:/Github/fusion-sim/tmle.R")
+  source("D:/Github/fusion-sim/simfun.R")
   
 })
 
@@ -40,7 +40,7 @@ clusterApply(cl, index, function(i) {
   
   dat <- simConditions[i,]
   
-  sig2 <- 5
+  sig2 <- 10
   n <- dat$n
   z_scen <- dat$z_scen
   y_scen <- dat$y_scen

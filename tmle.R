@@ -1,14 +1,13 @@
 
-tmle <- function(data, S, Z, Y, nsitemodel,  nzmodel, noutmodel) {
+tmle <- function(data, S, Z, Y, nsitemodel,  nzmodel, noutmodel, fusion = FALSE) {
   
   n.dat <- nrow(data)
   
   # Calculate components of clever covariate
   glm_cps <- glm(formula = nsitemodel, data = data, family = "binomial")
   cps <- predict(glm_cps, type = "response")
-  
-  glm_cpz <- glm(formula = nzmodel, data = data, family = "binomial")
-  cpz <- predict(glm_cpz, type = "response")
+  glm_cpz <- glm(formula = nzmodel, data = data, family = "binomial", subset = S == 1)
+  cpz <- predict(glm_cpz, newdata = data, type = "response")
   
   # Calculate clever covariate.
   ps0 <- mean(I(S == 0))
@@ -19,7 +18,10 @@ tmle <- function(data, S, Z, Y, nsitemodel,  nzmodel, noutmodel) {
   h0w <- ((1 - Z) * I(S == 1)) / g0w
   h1w <- (Z * I(S == 1)) / g1w 
   
-  ymodel <- glm(formula = noutmodel, family = "gaussian", data = data, subset = S == 1)
+  if(fusion)
+    ymodel <- glm(formula = noutmodel, family = "gaussian", data = data)
+  else
+    ymodel <- glm(formula = noutmodel, family = "gaussian", data = data, subset = S == 1)
   
   data_new0 <- data_new1 <- as.data.frame(data)
   data_new0$Z <- 0
