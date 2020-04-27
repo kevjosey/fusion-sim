@@ -1,5 +1,5 @@
 cfit <- function(cmat, target,
-                 distance = c("entropy", "binary", "shifted", "fusion"),
+                 distance = c("entropy", "binary", "shifted"),
                  base_weights = NULL,
                  coefs_init = NULL,
                  optim_ctrl = list(maxit = 500, reltol = 1e-10),
@@ -11,15 +11,13 @@ cfit <- function(cmat, target,
   if (!is.vector(target))
     stop("target must be a vector")
   
-  if (!(distance %in% c("entropy", "binary", "shifted", "fusion")))
-    stop("distance must be either \"entropy\", \"binary\", \"shifted\", or \"fusion\"")
+  if (!(distance %in% c("entropy", "binary", "shifted")))
+    stop("distance must be either \"entropy\", \"binary\", or \"shifted\"")
   
   if (distance == "binary") {
     fn <- match.fun(lagrange_bent)
   } else if (distance == "shifted") {
     fn <- match.fun(lagrange_sent)
-  } else if (distance == "fusion") {
-    fn <- match.fun(lagrange_fusion)
   } else { # distance == "entropy"
     fn <- match.fun(lagrange_ent)
   }
@@ -69,8 +67,6 @@ cfit <- function(cmat, target,
     weights <- c( base_weights / (base_weights + (1 - base_weights)*exp(cmat %*% coefs)) )
   } else if (distance == "shifted") {
     weights <- c( 1 + (base_weights - 1)*exp(-cmat %*% coefs) )
-  } else if (distance == "fusion") {
-    weights <- base_weights*c( 1 + exp(-cmat %*% coefs) )
   } else { # distance == "entropy"
     weights <- c( base_weights*exp(-cmat %*% coefs) )
   }
@@ -118,14 +114,6 @@ lagrange_ent <- function(coefs, cmat, target, base_weights) {
   
   temp <- sum(base_weights*exp(-cmat %*% coefs))
   out <- temp + sum(target * coefs)
-  return(out)
-  
-}
-
-lagrange_fusion <- function(coefs, cmat, target, base_weights) {
-  
-  temp <- sum((base_weights)*(cmat %*% coefs - exp(-cmat %*% coefs)))
-  out <- -temp + sum( target * coefs)
   return(out)
   
 }
@@ -184,7 +172,9 @@ transport_estimate <- function(obj, S, X, Y1, Z1, ...) {
   invbread <- matrix(0, nrow = 3*m + 1, ncol = 3*m + 1)
   invbread[1:(3*m),1:(3*m)] <- U
   invbread[3*m + 1, ] <- v
-  
+  # invbread[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- (n_1/n_0)*invbread[(2*m + 1):(3*m),(2*m + 1):(3*m)]
+  # meat[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- (n_1/n_0)*meat[(2*m + 1):(3*m),(2*m + 1):(3*m)]
+
   bread <- try(solve(invbread), silent = TRUE)
   
   if (inherits(bread, "try-error")) {
@@ -268,6 +258,10 @@ fusion_estimate <- function(obj, base_obj, S, X, Y, Z, ...) {
   invbread <- matrix(0, nrow = 4*m + 1, ncol = 4*m + 1)
   invbread[1:(4*m),1:(4*m)] <- U
   invbread[4*m + 1,] <- v
+  # invbread[(2*m + 1):(3*m),(2*m + 1):(4*m)] <- (n/n_1)*invbread[(2*m + 1):(3*m),(2*m + 1):(4*m)]
+  # invbread[(3*m + 1):(4*m),(3*m + 1):(4*m)] <- (n/n_0)*invbread[(3*m + 1):(4*m),(3*m + 1):(4*m)]
+  # meat[(2*m + 1):(3*m),(2*m + 1):(4*m)] <- (n/n_1)*meat[(2*m + 1):(3*m),(2*m + 1):(4*m)]
+  # meat[(3*m + 1):(4*m),(3*m + 1):(4*m)] <- (n/n_0)*meat[(3*m + 1):(4*m),(3*m + 1):(4*m)]
   
   bread <- try(solve(invbread), silent = TRUE)
   

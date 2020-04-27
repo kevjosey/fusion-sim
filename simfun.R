@@ -3,7 +3,7 @@
 ## BY: Kevin Josey                    ##
 ########################################
 
-hte_data <- function(n, sig2 = 5, y_scen = c("a", "b"), z_scen = c("a", "b"), s_scen = c("a", "b")){
+gen_data <- function(n, sig2 = 5, y_scen = c("a", "b"), z_scen = c("a", "b"), s_scen = c("a", "b")){
   
   # error variance
   R <- matrix(0, nrow = 2, ncol = 2)
@@ -19,20 +19,14 @@ hte_data <- function(n, sig2 = 5, y_scen = c("a", "b"), z_scen = c("a", "b"), s_
   
   # transformed predictors
   u1 <- as.numeric(scale(exp((x1 + x4))))
-  u2 <- as.numeric(scale((x1 + x3)^2))
-  u3 <- as.numeric(scale(abs((x2*x3))))
-  u4 <- as.numeric(scale((x2 + x4)^3))
+  u2 <- as.numeric(scale((x1 + x2)^3))
+  u3 <- as.numeric(scale((x2 + x3)^2))
+  u4 <- as.numeric(scale(log(abs(x3*x4))))
   
-  x1 <- as.numeric(scale(x1))
-  x2 <- as.numeric(scale(x2))
-  x3 <- as.numeric(scale(x3))
-  x4 <- as.numeric(scale(x4))
-  
-  # random noise
-  # v1 <- stats::rnorm(n, 1, 2)
-  # v2 <- stats::rnorm(n, -1, 2)
-  # v3 <- stats::rnorm(n, -1, 2)
-  # v4 <- stats::rnorm(n, 1, 2)
+  # u1 <- as.numeric(scale(exp(x1/2)))
+  # u2 <- as.numeric(scale(x2/(1 + exp(x1)) + 10))
+  # u3 <- as.numeric(scale((x1*x3/25 + 0.6)^3))
+  # u4 <- as.numeric(scale((x2 + x4 + 20)^2))
   
   # create matrix
   X <- cbind(int = rep(1, n), x1, x2, x3, x4)
@@ -40,11 +34,11 @@ hte_data <- function(n, sig2 = 5, y_scen = c("a", "b"), z_scen = c("a", "b"), s_
   # V <- cbind(int = rep(1, n), v1, v2, v3, v4)
   
   # coefficients
-  beta <- c(20, 5, 5, 5, 5)
-  alpha <- c(10, 5, 10, 5, 10)
+  beta <- c(5, -1, 3, -3, 1)
+  alpha <- c(10, -3, -1, 1, 3)
   lambda <- c(0, 0, 1, -0.5, 0.5)
-  delta <- c(0, -0.5, 0, 0.5, 1)
-  gamma <- c(0, -0.5, -1, -0.5, 0.5)
+  delta <- c(0, -1, -0.5, 0, 0.5)
+  gamma <- c(0, -0.5, -1, -0.5, 1)
   
   # Trial Participation
   if (s_scen == "b") {
@@ -72,7 +66,7 @@ hte_data <- function(n, sig2 = 5, y_scen = c("a", "b"), z_scen = c("a", "b"), s_
   
   # outcome mean
   mu_0 <- W %*% beta
-  mu_1 <- W %*% (alpha + beta)
+  mu_1 <- W %*% alpha
   
   # potential outcomes
   eval <- eigen(Sig, symmetric = TRUE)
@@ -110,8 +104,6 @@ simfit <- function(idx = 1, simDat) {
   X <- dat$X
   X1 <- dat$X[S == 1,]
   X0 <- dat$X[S == 0,]
-  U1 <- dat$U[S == 1,]
-  U0 <- dat$U[S == 0,]
   
   n_1 <- sum(S)
   n_0 <- sum(1 - S)
@@ -137,7 +129,7 @@ simfit <- function(idx = 1, simDat) {
   
   A <- cbind(as.matrix(Z*X), as.matrix( (1 - Z)*X ))
   b <- c(n*theta, n*theta)
-  fit_f <- cfit(cmat = A, target = b, base_weights = q, distance = "fusion")
+  fit_f <- cfit(cmat = A, target = b, base_weights = q, distance = "entropy")
   est_f <- fusion_estimate(obj = fit_f, base_obj = fit_base, S = S, X = X, Z = Z, Y = Y)
   cal_f <- est_f$estimate
   var_f <- est_f$variance
@@ -150,40 +142,40 @@ simfit <- function(idx = 1, simDat) {
   
   W <- data.frame(X[,-1], S = S, Y = Y, Z = Z)
   
-  tmleest <- try( tmle(S = S, Y = Y, Z = Z, data = as.data.frame(W), 
+  tmleest_t <- try( tmle(S = S, Y = Y, Z = Z, data = as.data.frame(W), 
                        nsitemodel = smod, nzmodel = zmod, noutmodel = ymod, fusion = FALSE), silent = TRUE )
+  
+  tmleest_f <- try( tmle(S = S, Y = Y, Z = Z, data = as.data.frame(W), 
+                       nsitemodel = smod, nzmodel = zmod, noutmodel = ymod, fusion = TRUE), silent = TRUE )
   
   # Augmented Calibration - Transport
   
-  cdat1 <- as.data.frame(cbind(Y1 = Y1, unname(X1[,-1])))
-  m_0 <- predict(lm(Y1 ~ ., data = cdat1[Z1 == 0,]), newdata = as.data.frame(unname(X)))
-  m_1 <- predict(lm(Y1 ~ ., data = cdat1[Z1 == 1,]), newdata = as.data.frame(unname(X)))
+  cdat <- as.data.frame(cbind(Y = Y, unname(X[,-1])))
   
-  baldat <- data.frame(Z = Z1, X = X1[,-1])
-  balfit <- glm(Z ~ ., data = baldat, family = quasibinomial(link = "logit"), weights = q[S == 1])
-  balprob <- balfit$fitted.values
-  balwts <- ifelse(Z1 == 1, 1/balprob, 1/(1 - balprob))
-  ipw <- rep(1, times = n)
-  ipw[S == 1] <- balwts
+  m_0 <- predict(lm(Y ~ ., data = cdat, subset = (S == 1 & Z == 0)), newdata = cdat)
+  m_1 <- predict(lm(Y ~ ., data = cdat, subset = (S == 1 & Z == 1)), newdata = cdat)
+  
+  bdat <- data.frame(Z = Z, X = X[,-1])
+  bprob <- predict(glm(Z ~ ., data = bdat, family = quasibinomial(link = "logit"), subset = S == 1), newdata = bdat, type = "response") 
+  ipw <- ifelse(Z == 1, 1/bprob, 1/(1 - bprob))
   
   aug_t <- sum(S*q*(Z*(Y - m_1)/ipw - (1 - Z)*(Y - m_0)/ipw))/n_1 + sum((1-S)*(m_1 - m_0))/n_0
   
   # Augmented Calibration - Fusion
   
-  cdat <- as.data.frame(cbind(Y = Y, unname(X[,-1])))
-  g_0 <- predict(lm(Y ~ ., data = cdat[Z == 0,]), newdata = as.data.frame(unname(X)))
-  g_1 <- predict(lm(Y ~ ., data = cdat[Z == 1,]), newdata = as.data.frame(unname(X)))
+  g_0 <- predict(lm(Y ~ ., data = cdat, subset = Z == 0), newdata = cdat)
+  g_1 <- predict(lm(Y ~ ., data = cdat, subset = Z == 1), newdata = cdat)
   
-  aug_f <- sum(S*q*(Z*(Y - g_1)/ipw  - (1 - Z)*(Y - g_0)/ipw))/n_1 + sum((1-S)*(g_1 - g_0))/n_0
+  aug_f <- sum(S*q*(Z*(Y - g_1)/ipw  - (1 - Z)*(Y - g_0)/ipw))/n_1 + sum((1 - S)*(g_1 - g_0))/n_0
   
   # TMLE Results
   
-  tmlerslt <- tmleest$estimate
-  tmlevar <- tmleest$variance
+  tmle_t <- tmleest_t$estimate
+  tmle_f <- tmleest_f$estimate
   
   # Combine Results
   
-  tau <- c(tmlerslt, aug_t, cal_t, aug_f, cal_f)
+  tau <- c(tmle_t, aug_t, cal_t, aug_f, cal_f)
   se <- c(sqrt(var_t), sqrt(var_f))
   
   return(list(tau = tau, se = se, PATE = PATE))
