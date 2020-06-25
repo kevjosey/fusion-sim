@@ -6,7 +6,7 @@ source("D:/Github/fusion-sim/tmle.R")
 source("D:/Github/fusion-sim/simfun.R")
 
 iter <- 1000
-n <- 1000
+n <- 2000
 sig2 <- 10
 y_scen <- "b"
 z_scen <- "a"

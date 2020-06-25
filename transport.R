@@ -97,13 +97,13 @@ esteq_transport <- function(S, X, Y, Z, p, base_weights, theta, tau) {
   
 }
 
-esteq_fusion <- function(X, Y, Z, S, p, q, base_weights, theta, tau) {
+esteq_fusion <- function(S, X, Y, Z, p, base_weights, theta, tau) {
   
-  eq1 <- p*q*Z*X - theta
-  eq2 <- p*q*(1 - Z)*X - theta
-  eq3 <- S*(q*X - theta)
+  eq1 <- p*Z*X - theta
+  eq2 <- p*(1 - Z)*X - theta
+  eq3 <- S*(p*X - theta)
   eq4 <- (1 - S)*(base_weights*X - theta)
-  eq5 <- p*q*(Z*(Y - tau) - (1 - Z)*Y)
+  eq5 <- p*(Z*(Y - tau) - (1 - Z)*Y)
   
   eq <- c(eq1, eq2, eq3, eq4, eq5) 
   return(eq)
@@ -172,8 +172,6 @@ transport_estimate <- function(obj, S, X, Y1, Z1, ...) {
   invbread <- matrix(0, nrow = 3*m + 1, ncol = 3*m + 1)
   invbread[1:(3*m),1:(3*m)] <- U
   invbread[3*m + 1, ] <- v
-  # invbread[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- (n_1/n_0)*invbread[(2*m + 1):(3*m),(2*m + 1):(3*m)]
-  # meat[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- (n_1/n_0)*meat[(2*m + 1):(3*m),(2*m + 1):(3*m)]
 
   bread <- try(solve(invbread), silent = TRUE)
   
@@ -224,51 +222,40 @@ fusion_estimate <- function(obj, base_obj, S, X, Y, Z, ...) {
 
   tau <- sum(weights*(2*Z - 1)*Y)/sum(weights*Z)
   
-  dp <- as.vector( -exp(-A %*% coefs_1) )
-  dq <- as.vector( -exp(-R %*% coefs_2) )
   U <- matrix(0, ncol = 4*m, nrow = 4*m)
   v <- rep(0, times = 4*m + 1)
   meat <- matrix(0, ncol = 4*m + 1, nrow = 4*m + 1)
   
-  for (i in 1:(n_1 + n_0)) {
+  for (i in 1:n) {
     
-    U[1:(2*m),1:(2*m)] <- U[1:(2*m),1:(2*m)] + q[i]*dp[i] * (A[i,] %*% t(A[i,]))
+    U[1:(3*m),1:(3*m)] <- U[1:(3*m),1:(3*m)] - weights[i] * A[i,] %*% t(A[i,])
     
-    U[1:(2*m),(2*m + 1):(3*m)] <- U[1:(2*m),(2*m + 1):(3*m)] + 
-      dq[i]*p[i]*(A[i,] %*% t(R[i,]))
-    U[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- U[(2*m + 1):(3*m),(2*m + 1):(3*m)] + 
-      dq[i] * (R[i,] %*% t(R[i,]))
-    
-    U[1:m,(3*m + 1):(4*m)] <- U[1:m,(3*m + 1):(4*m)] - diag(1, m, m)
+    U[1:m, (3*m + 1):(4*m)] <- U[1:m, (3*m + 1):(4*m)] - diag(1, m, m)
     U[(m + 1):(2*m),(3*m + 1):(4*m)] <- U[(m + 1):(2*m),(3*m + 1):(4*m)] - diag(1, m, m)
     U[(2*m + 1):(3*m),(3*m + 1):(4*m)] <- U[(2*m + 1):(3*m),(3*m + 1):(4*m)] - diag(S[i], m, m)
-    U[(3*m + 1):(4*m), (3*m + 1):(4*m)] <- U[(3*m + 1):(4*m), (3*m + 1):(4*m)] - diag((1 - S[i]), m, m)
+    U[(3*m + 1):(4*m),(3*m + 1):(4*m)] <- U[(3*m + 1):(4*m),(3*m + 1):(4*m)] - diag((1 - S[i]), m, m)
     
-    v[1:(2*m)] <- v[1:(2*m)] + q[i]*dp[i] * (2*Z[i] - 1)*(Y[i] - Z[i]*tau)*A[i,]
-    v[(2*m+1):(3*m)] <- v[(2*m + 1):(3*m)] + dq[i]*p[i]*(2*Z[i] - 1)*(Y[i] - Z[i]*tau)*R[i,]
-    v[4*m + 1] <- v[4*m + 1] - q[i]*p[i]*Z[i]
-
-    meat <- meat + tcrossprod(esteq_fusion(X = X[i,], Y = Y[i], Z = Z[i], S = S[i], 
-                                           p = p[i], q = q[i], base_weights = base_weights[i],
-                                           theta = theta, tau = tau))
+    v[1:(3*m)] <- v[1:(3*m)] - weights[i] * (2*Z[i] - 1) * (Y[i] - Z[i]*tau) * A[i,]
+    v[4*m + 1] <- v[4*m + 1] - weights[i]*Z[i]
     
+    meat <- meat +  tcrossprod(esteq_fusion(X = X[i,], Y = Y[i], Z = Z[i], S = S[i], 
+                                               p = weights[i], base_weights = base_weights[i], 
+                                               theta = theta, tau = tau))
     
   }
   
   invbread <- matrix(0, nrow = 4*m + 1, ncol = 4*m + 1)
   invbread[1:(4*m),1:(4*m)] <- U
-  invbread[4*m + 1,] <- v
-  # invbread[(2*m + 1):(3*m),(2*m + 1):(4*m)] <- (n/n_1)*invbread[(2*m + 1):(3*m),(2*m + 1):(4*m)]
-  # invbread[(3*m + 1):(4*m),(3*m + 1):(4*m)] <- (n/n_0)*invbread[(3*m + 1):(4*m),(3*m + 1):(4*m)]
-  # meat[(2*m + 1):(3*m),(2*m + 1):(4*m)] <- (n/n_1)*meat[(2*m + 1):(3*m),(2*m + 1):(4*m)]
-  # meat[(3*m + 1):(4*m),(3*m + 1):(4*m)] <- (n/n_0)*meat[(3*m + 1):(4*m),(3*m + 1):(4*m)]
+  invbread[4*m + 1, ] <- v
   
   bread <- try(solve(invbread), silent = TRUE)
   
-  if (inherits(bread, "try-error"))
+  if (inherits(bread, "try-error")) {
+    
+    sandwich <- NA
     variance <- NA
-  
-  else {
+    
+  } else {
     
     sandwich <- bread %*% meat %*% t(bread)
     variance <- sandwich[4*m + 1, 4*m + 1]
