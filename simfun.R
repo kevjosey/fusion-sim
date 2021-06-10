@@ -115,7 +115,7 @@ simfit <- function(idx = 1, simDat) {
   # Calibration - Transport
   
   A <- cbind(as.matrix(S*Z*X), as.matrix( S*(1 - Z)*X ))
-  b <- c(n_1*theta, n_1*theta)
+  b <- c(n_0*theta, n_0*theta)
   fit_t <- cfit(cmat = A, target = b, distance = "entropy")
   est_t <- transport_estimate(obj = fit_t, S = S, X = X, Z1 = Z1, Y1 = Y1)
   cal_t <- est_t$estimate
@@ -156,7 +156,8 @@ simfit <- function(idx = 1, simDat) {
   m_1 <- predict(lm(Y ~ ., data = cdat, subset = (S == 1 & Z == 1)), newdata = cdat)
   
   bdat <- data.frame(Z = Z, X = X[,-1])
-  bprob <- predict(glm(Z ~ ., data = bdat, family = quasibinomial(link = "logit"), subset = S == 1), newdata = bdat, type = "response") 
+  bprob <- predict(glm(Z ~ ., data = bdat, family = quasibinomial(link = "logit"), 
+                       subset = S == 1), newdata = bdat, type = "response") 
   ipw <- ifelse(Z == 1, 1/bprob, 1/(1 - bprob))
   
   aug_t <- sum(S*q*(Z*(Y - m_1)/ipw - (1 - Z)*(Y - m_0)/ipw))/n_1 + sum((1-S)*(m_1 - m_0))/n_0
