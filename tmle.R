@@ -51,7 +51,7 @@ tmle <- function(S, Z, Y, X, fusion = FALSE) {
   tmle_est <- mean(mu1_new[S==0,3] - mu1_new[S==0,2])
 
   # Get efficient influence curve
-  eic <- c((h1w - h0w) * (Y - mu_new[,1]) + mu1_new[,3] - mu1_new[,2] - tmle_est)/mean(I(S == 0))
+  eic <- c((h1w - h0w) * (Y - mu_new[,1]) + I(S == 0)*mu1_new[,3] - I(S == 0)*mu1_new[,2] - tmle_est)/mean(I(S == 0))
   
   return(list(estimate = tmle_est, variance = var(eic) / n))
   

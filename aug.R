@@ -1,4 +1,4 @@
-aug <- function(S, Z, Y, X, fusion = FALSE, psx = FALSE) {
+aug <- function(S, Z, Y, X, fusion = FALSE) {
   
   n <- nrow(X)
   n_0 <- sum(S == 0)
@@ -25,23 +25,11 @@ aug <- function(S, Z, Y, X, fusion = FALSE, psx = FALSE) {
     fit_0 <- lm(Y ~ ., data = dat_y, subset = Z == 0)
     fit_1 <- lm(Y ~ ., data = dat_y, subset = Z == 1)
     
-    if (psx) {
-      treat <- predict(glm(Z ~ ., data = dat_z, 
-                           family = binomial(link = "logit"),
-                           subset = S == 1), 
-                       newdata = dat_z, type = "response")
-      ipw <- ifelse(Z == 1, 1/treat, 1/(1-treat))
-      h0w <- (1 - Z) * (q*ipw)
-      h1w <- Z * (q*ipw)
-    } else {
-      treat <- predict(glm(Z ~ ., data = dat_z, 
-                           family = binomial(link = "logit"),
-                           subset = S == 1), 
-                       newdata = dat_z, type = "response")
-      ipw <- ifelse(Z == 1, 1/treat, 1/(1-treat))
-      h0w <- (1 - Z) * S * (q*ipw)
-      h1w <- Z * S * (q*ipw)
-    }
+    treat <- predict(glm(Z ~ ., data = dat_z, family = binomial(link = "logit")), 
+                     newdata = dat_z, type = "response")
+    ipw <- ifelse(Z == 1, 1/treat, 1/(1-treat))
+    h0w <- (1 - Z) * (q*ipw)
+    h1w <- Z * (q*ipw)
     
   } else {
     
@@ -63,8 +51,8 @@ aug <- function(S, Z, Y, X, fusion = FALSE, psx = FALSE) {
   mu <- cbind(Z*mu_tmp[,2] + (1 - Z)*mu_tmp[,1], mu_tmp)
   
   if (fusion) {
-    aug_est <- sum((h1w - h0w) * (Y - mu[,1]))/sum(Z*q*ipw) + mean(mu[,3] - mu[,2])
-    eic <- c((h1w - h0w) * (Y - mu[,1]) + mu[,3] - mu[,2] - aug_est)
+    aug_est <- sum((h1w - h0w) * (Y - mu[,1]))/sum(Z*q*ipw) + mean(mu[S == 0,3] - mu[S == 0,2])
+    eic <- c((h1w - h0w) * (Y - mu[,1]) + I(S == 0)*mu[,3] - I(S == 0)*mu[,2] - aug_est)
   } else {
     aug_est <- sum((h1w - h0w) * (Y - mu[,1]))/sum(S*Z*q*ipw) + mean(mu[S == 0,3] - mu[S == 0,2])
     eic <- c((h1w - h0w) * (Y - mu[,1]) + I(S == 0)*mu[,3] - I(S == 0)*mu[,2] - aug_est)/mean(I(S == 0))

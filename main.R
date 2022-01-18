@@ -77,7 +77,7 @@ mclapply(index, function(i,...) {
   save(tau, file = tauFilename)
   save(cp, file = coverageFilename)
   
-}, mc.cores = 7)
+}, mc.cores = 21)
 
 stop <- Sys.time()
 stop - start
@@ -163,7 +163,7 @@ dat2$ind <- factor(dat2$ind,
 p2 <- ggplot(dat2) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
-  ylim(-1, 1) +
+  ylim(-5, 5) +
   xlab("") +
   ggtitle("Treatment & Sample Misspecification") +
   geom_hline(yintercept = 0, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
@@ -199,7 +199,7 @@ dat4$ind <- factor(dat4$ind,
 p4 <- ggplot(dat4) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
-  ylim(-3, 3)  +
+  ylim(-5, 5)  +
   xlab("") +
   ggtitle("Potential Outcome Exchangeability Violation") +
   geom_hline(yintercept = 0, colour = "red", linetype = 3, show.legend = FALSE) + 
@@ -235,7 +235,7 @@ dat6$ind <- factor(dat6$ind,
 p6 <- ggplot(dat6) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
-  ylim(-12, 12)  +
+  ylim(-15, 15)  +
   xlab("") +
   ggtitle("Treatment Overlap Violation") +
   geom_hline(yintercept = 0, colour = "red", linetype = 3, show.legend = FALSE) + 

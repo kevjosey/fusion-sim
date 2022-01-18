@@ -142,7 +142,7 @@ simfit <- function(idx = 1, simDat, ...) {
   var_f <- ifelse(!inherits(est_f, "try-error") & est_f$estimate < 14 & est_f$estimate > -10, est_f$variance, NA)
   
   # TMLE - Transport
-  
+
   tmle_t <- try( tmle(S = S, Y = Y, Z = Z, X = X, fusion = FALSE), silent = TRUE )
   tmle_est_t <- ifelse(!inherits(tmle_t, "try-error") & tmle_t$estimate < 14 & tmle_t$estimate > -10, tmle_t$estimate, NA)
   tmle_var_t <- ifelse(!inherits(tmle_t, "try-error") & tmle_t$estimate < 14 & tmle_t$estimate > -10, tmle_t$variance, NA)
@@ -161,7 +161,7 @@ simfit <- function(idx = 1, simDat, ...) {
   
   # Augmented - Fusion
   
-  aug_f <- try( aug(S = S, Y = Y, Z = Z, X = X, fusion = TRUE, psx = TRUE), silent = TRUE )
+  aug_f <- try( aug(S = S, Y = Y, Z = Z, X = X, fusion = TRUE), silent = TRUE )
   aug_est_f <- ifelse(!inherits(aug_f, "try-error") & aug_f$estimate < 14 & aug_f$estimate > -10, aug_f$estimate, NA)
   aug_var_f <- ifelse(!inherits(aug_f, "try-error") & aug_f$estimate < 14 & aug_f$estimate > -10, aug_f$variance, NA)
   
