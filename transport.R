@@ -1,3 +1,41 @@
+calib <- function(S, Z, Y, X, fusion = FALSE) {
+  
+  Y1 <- Y[S == 1]
+  Z1 <- Z[S == 1]
+  X0 <- X[S == 0,]
+  theta <- colMeans(X0)
+  
+  n_1 <- sum(S)
+  n_0 <- sum(1 - S)
+  n <- n_1 + n_0
+  m <- ncol(X)
+  
+  if (fusion) {
+  
+    A <- cbind(as.matrix((2*Z - 1)*X), as.matrix(Z*X), as.matrix(S*X))
+    b <- c(rep(0,m), n*theta, n_1*theta)
+    fit_f <- cfit(cmat = A, target = b, distance = "entropy")
+    est_f <- if(fit_f$converged) {
+      fusion_estimate(obj = fit_f, theta = theta, S = S, X = X, Z = Z, Y = Y) 
+    } else { list(estimate = NA, variance = NA) }
+    
+    return(est_f)
+    
+  } else {
+    
+    A <- cbind(as.matrix(S*(2*Z - 1)*X), as.matrix(S*X))
+    b <- c(rep(0,m), n_0*theta)
+    fit_t <- cfit(cmat = A, target = b, distance = "entropy")
+    est_t <- if(fit_t$converged) {
+      transport_estimate(obj = fit_t, theta = theta, S = S, X = X, Z1 = Z1, Y1 = Y1)
+    } else{ list(estimate = NA, variance = NA) }
+    
+    return(est_t)
+    
+  }
+  
+}
+
 cfit <- function(cmat, target,
                  distance = c("entropy", "binary", "shifted"),
                  base_weights = NULL,
@@ -87,8 +125,8 @@ cfit <- function(cmat, target,
 
 esteq_transport <- function(S, X, Y, Z, p, base_weights, theta, tau) {
   
-  eq1 <- S*(Z*p*X - theta)
-  eq2 <- S*((1 - Z)*p*X - theta)
+  eq1 <- S*(2*Z - 1)*p*X
+  eq2 <- S*(p*X - theta)
   eq3 <- (1 - S)*(base_weights*X - theta)
   eq4 <- S*p*(Z*(Y - tau) - (1 - Z)*Y)
   
@@ -99,9 +137,9 @@ esteq_transport <- function(S, X, Y, Z, p, base_weights, theta, tau) {
 
 esteq_fusion <- function(S, X, Y, Z, p, base_weights, theta, tau) {
   
-  eq1 <- p*Z*X - theta
-  eq2 <- p*(1 - Z)*X - theta
-  eq3 <- S*(p*X - theta)
+  eq1 <- (2*Z - 1)*p*X
+  eq2 <- Z*p*X - theta
+  eq3 <- S*p*X - theta
   eq4 <- (1 - S)*(base_weights*X - theta)
   eq5 <- p*(Z*(Y - tau) - (1 - Z)*Y)
   
@@ -118,9 +156,17 @@ lagrange_ent <- function(coefs, cmat, target, base_weights) {
   
 }
 
+lagrange_sent <- function(coefs, cmat, target, base_weights) {
+  
+  temp <- sum(cmat %*% coefs - (base_weights - 1)*exp(-cmat %*% coefs))
+  out <- -temp + sum(target * coefs)
+  return(out)
+  
+}
+
 # Estimation with individual-level data. Y and Z are arbitrary for the target sample, 
 # but must be included. Set them to 0.
-transport_estimate <- function(obj, S, X, Y1, Z1, ...) {
+transport_estimate <- function(obj, theta, S, X, Y1, Z1, ...) {
   
   if (!inherits(obj, "cfit"))
     stop("obj must be of class \"cfit\"")
@@ -133,7 +179,6 @@ transport_estimate <- function(obj, S, X, Y1, Z1, ...) {
   n_1 <- sum(S)
   n <- n_1 + n_0
   m <- ncol(X)
-  theta <- obj$target[1:m]/n_1
   
   Y <- rep(1, times = n)
   Y[S == 1] <- Y1
@@ -146,7 +191,7 @@ transport_estimate <- function(obj, S, X, Y1, Z1, ...) {
   if (length(base_weights) != length(S))
     stop("base_weights must have the same length as S")
   
-  tau <- sum(S*(weights*(2*Z - 1)*Y)/sum(S*Z*weights))
+  tau <- sum(S*weights*(2*Z - 1)*Y)/sum(S*Z*weights)
     
   U <- matrix(0, ncol = 3*m, nrow = 3*m)
   v <- rep(0, times = 3*m + 1)
@@ -155,13 +200,11 @@ transport_estimate <- function(obj, S, X, Y1, Z1, ...) {
   for (i in 1:n) {
     
     U[1:(2*m),1:(2*m)] <- U[1:(2*m),1:(2*m)] - weights[i] * A[i,] %*% t(A[i,])
-    
-    U[1:m, (2*m + 1):(3*m)] <- U[1:m, (2*m + 1):(3*m)] - diag(S[i], m, m)
     U[(m + 1):(2*m),(2*m + 1):(3*m)] <- U[(m + 1):(2*m),(2*m + 1):(3*m)] - diag(S[i], m, m)
-    U[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- U[(2*m + 1):(3*m),(2*m + 1):(3*m)] - diag((1 - S[i]), m, m)
+    U[(2*m + 1):(3*m),(2*m + 1):(3*m)] <- U[(2*m + 1):(3*m),(2*m + 1):(3*m)] - diag(1 - S[i], m, m)
     
-    v[1:(2*m)] <- v[1:(2*m)] - weights[i] * (2*Z[i] - 1) * (Y[i] - Z[i]*tau) * A[i,]
-    v[3*m + 1] <- v[3*m + 1] - S[i]*weights[i]*Z[i]
+    v[1:(2*m)] <- v[1:(2*m)] - weights[i]*S[i]*(2*Z[i] - 1)*(Y[i] - Z[i]*tau)*A[i,]
+    v[3*m + 1] <- v[3*m + 1] - weights[i]*S[i]*Z[i]
     
     meat <- meat +  tcrossprod(esteq_transport(X = X[i,], Y = Y[i], Z = Z[i], S = S[i], 
                                                p = weights[i], base_weights = base_weights[i], 
@@ -193,26 +236,21 @@ transport_estimate <- function(obj, S, X, Y1, Z1, ...) {
 }
 
 # but must be included. Set them to 0.
-fusion_estimate <- function(obj, base_obj, S, X, Y, Z, ...) {
+fusion_estimate <- function(obj, theta, S, X, Y, Z, ...) {
   
   if (!inherits(obj, "cfit"))
     stop("obj must be of class \"cfit\"")
   
   A <- obj$cmat
-  R <- base_obj$cmat
   weights <- obj$weights
-  base_weights <- base_obj$base_weights
+  base_weights <- obj$base_weights
   
-  q <- base_obj$weights
-  p <- weights/q
-  coefs_1 <- obj$coefs
-  coefs_2 <- base_obj$coefs
+  coefs <- obj$coefs
   
   n_0 <- sum(1 - S)
   n_1 <- sum(S)
   n <- n_1 + n_0
   m <- ncol(X)
-  theta <- obj$target[1:m]/n
   
   if (is.null(base_weights))
     base_weights <- rep(1, times = length(S))
@@ -220,7 +258,7 @@ fusion_estimate <- function(obj, base_obj, S, X, Y, Z, ...) {
   if (length(base_weights) != length(S))
     stop("base_weights must have the same length as S")
 
-  tau <- sum(weights*(2*Z - 1)*Y)/sum(weights*Z)
+  tau <- sum(weights*(2*Z - 1)*Y)/sum(Z*weights)
   
   U <- matrix(0, ncol = 4*m, nrow = 4*m)
   v <- rep(0, times = 4*m + 1)
@@ -229,18 +267,16 @@ fusion_estimate <- function(obj, base_obj, S, X, Y, Z, ...) {
   for (i in 1:n) {
     
     U[1:(3*m),1:(3*m)] <- U[1:(3*m),1:(3*m)] - weights[i] * A[i,] %*% t(A[i,])
-    
-    U[1:m, (3*m + 1):(4*m)] <- U[1:m, (3*m + 1):(4*m)] - diag(1, m, m)
     U[(m + 1):(2*m),(3*m + 1):(4*m)] <- U[(m + 1):(2*m),(3*m + 1):(4*m)] - diag(1, m, m)
     U[(2*m + 1):(3*m),(3*m + 1):(4*m)] <- U[(2*m + 1):(3*m),(3*m + 1):(4*m)] - diag(S[i], m, m)
-    U[(3*m + 1):(4*m),(3*m + 1):(4*m)] <- U[(3*m + 1):(4*m),(3*m + 1):(4*m)] - diag((1 - S[i]), m, m)
+    U[(3*m + 1):(4*m),(3*m + 1):(4*m)] <- U[(3*m + 1):(4*m),(3*m + 1):(4*m)] - diag(1 - S[i], m, m)
     
-    v[1:(3*m)] <- v[1:(3*m)] - weights[i] * (2*Z[i] - 1) * (Y[i] - Z[i]*tau) * A[i,]
+    v[1:(3*m)] <- v[1:(3*m)] - weights[i]*(2*Z[i] - 1)*(Y[i] - Z[i]*tau)*A[i,]
     v[4*m + 1] <- v[4*m + 1] - weights[i]*Z[i]
     
     meat <- meat +  tcrossprod(esteq_fusion(X = X[i,], Y = Y[i], Z = Z[i], S = S[i], 
-                                               p = weights[i], base_weights = base_weights[i], 
-                                               theta = theta, tau = tau))
+                                            p = weights[i], base_weights = base_weights[i], 
+                                            theta = theta, tau = tau))
     
   }
   

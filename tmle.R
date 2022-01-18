@@ -1,48 +1,58 @@
 
-tmle <- function(data, S, Z, Y, nsitemodel,  nzmodel, noutmodel, fusion = FALSE) {
+tmle <- function(S, Z, Y, X, fusion = FALSE) {
+
+  star <- (Y - min(Y, na.rm = T))/(max(Y, na.rm = T) - min(Y, na.rm = T))
   
-  n.dat <- nrow(data)
+  idx <- which(apply(X, 2, var) != 0) # remove intercept
+  dat_y <- data.frame(star = star, unname(X[,idx]))
+  dat_s <- data.frame(S = S, unname(X[,idx]))
+  dat_z <- data.frame(Z = Z, unname(X[,idx]))
+
+  n <- nrow(X)
+  n_0 <- sum(S == 0)
+  n_1 <- sum(S == 1)
   
-  # Calculate components of clever covariate
-  glm_cps <- glm(formula = nsitemodel, data = data, family = "binomial")
-  cps <- predict(glm_cps, type = "response")
-  glm_cpz <- glm(formula = nzmodel, data = data, family = "binomial", subset = S == 1)
-  cpz <- predict(glm_cpz, newdata = data, type = "response")
+  samp <- predict(glm(S ~ ., data = dat_s, family = binomial(link = "logit")), 
+                  newdata = dat_s, type = "response")
+  treat <- predict(glm(Z ~ ., data = dat_z, family = binomial(link = "logit"), subset = S == 1), 
+                   newdata = dat_z, type = "response")
   
-  # Calculate clever covariate.
-  ps0 <- mean(I(S == 0))
+  g0w <- ((1 - treat) * samp) / (1 - samp)
+  g1w <- (treat * samp) / (1 - samp)
+  h0w <- (1 - Z) * S / g0w
+  h1w <- Z * S / g1w
   
-  g0w <- ((1 - cpz) * cps) / (1 - cps)
-  g1w <- (cpz * cps) / (1 - cps)
+  if (fusion) {
+    fit_0 <- glm(star ~ ., data = dat_y, family = quasibinomial(link = "logit"), subset = Z == 0)
+    fit_1 <- glm(star ~ ., data = dat_y, family = quasibinomial(link = "logit"), subset = Z == 1)
+  } else {
+    fit_0 <- glm(star ~ ., data = dat_y, family = quasibinomial(link = "logit"), subset = Z == 0 & S == 1)
+    fit_1 <- glm(star ~ ., data = dat_y, family = quasibinomial(link = "logit"), subset = Z == 1 & S == 1)
+  }
   
-  h0w <- ((1 - Z) * I(S == 1)) / g0w
-  h1w <- (Z * I(S == 1)) / g1w 
+  # initial predictions
+  mu_tmp <- cbind(predict(fit_0, newdata = dat_y, type = "response"),
+                  predict(fit_1, newdata = dat_y, type = "response"))
   
-  if(fusion)
-    ymodel <- glm(formula = noutmodel, family = "gaussian", data = data)
-  else
-    ymodel <- glm(formula = noutmodel, family = "gaussian", data = data, subset = S == 1)
+  mu <- cbind(Z*mu_tmp[,2] + (1 - Z)*mu_tmp[,1], mu_tmp)
   
-  data_new0 <- data_new1 <- as.data.frame(data)
-  data_new0$Z <- 0
-  data_new1$Z <- 1
-  
-  # Initial prediction.
-  q <- cbind(predict(ymodel, type = "link", newdata = data),
-             predict(ymodel, type = "link", newdata = data_new0),
-             predict(ymodel, type = "link", newdata = data_new1))
-  
-  epsilon <- coef(glm(Y ~ -1 + offset(q[, 1]) + h0w + h1w, family = "gaussian", subset = S == 1))
-  
+  epsilon <- coef(glm(star ~ -1 + offset(qlogis(mu[,1])) + h0w + h1w, 
+                      family = quasibinomial(link = "logit"), subset = S == 1))
+    
   # Update initial prediction.
-  q1 <- q + c((epsilon[1] * h0w + epsilon[2] * h1w), epsilon[1] / g0w , epsilon[2] / g1w )
+  mu1 <- plogis(qlogis(mu) + cbind(epsilon[1] * h0w + epsilon[2] * h1w,
+                                   epsilon[1]/g0w, epsilon[2]/g1w))
   
-  # Get efficient influence curve values for everyone
-  tmleest <- mean(q1[, 3][S == 0]) - mean(q1[, 2][S == 0])
-  eic <- (((Z * h1w / ps0) - ((1 - Z) * h0w / ps0)) * (Y - q[, 1])) + 
-    (I(S == 0) / ps0 * q1[, 3]) - (I(S == 0) / ps0 * q1[, 2]) - 
-    (tmleest / ps0)
+  # Scale to original
+  mu_new <- mu*(max(Y, na.rm = TRUE) - min(Y, na.rm = TRUE)) + min(Y, na.rm = TRUE)
+  mu1_new <- mu1*(max(Y, na.rm = TRUE) - min(Y, na.rm = TRUE)) + min(Y, na.rm = TRUE)
   
-  return(list(estimate = tmleest, variance = var(eic) / n.dat))
+  # Estimate
+  tmle_est <- mean(mu1_new[S==0,3] - mu1_new[S==0,2])
+
+  # Get efficient influence curve
+  eic <- c((h1w - h0w) * (Y - mu_new[,1]) + mu1_new[,3] - mu1_new[,2] - tmle_est)/mean(I(S == 0))
+  
+  return(list(estimate = tmle_est, variance = var(eic) / n))
   
 }
