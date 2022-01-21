@@ -29,9 +29,9 @@ gen_data <- function(n, sig2 = 5, scenario = c("base", "ps-mis", "out-mis", "ps-
   # V <- cbind(int = rep(1, n), v1, v2, v3, v4)
   
   # coefficients
-  beta0 <- c(-2, 4, -2, 4, -2)
+  beta0 <- c(-2, -3, -1, 1, 3)
   beta1 <- c(4, 0, 0, 0, 0)
-  alpha <- c(2, -2, -2, 2, 2)
+  alpha <- c(2, -1, 3, -3, 1)
   lambda <- c(0.5, -0.5, 0.5, -0.5, 0.5)
   delta <- c(-0.5, 0, 0, 0, 0)
   gamma <- c(0, -0.5, -0.5, 0.5, 0.5)
@@ -44,61 +44,69 @@ gen_data <- function(n, sig2 = 5, scenario = c("base", "ps-mis", "out-mis", "ps-
   # gamma <- c(-0.25, 0.25, -0.25, 0.25, -0.25)
   
   if (scenario == "base"){
-    f_X <- c(1/(1 + exp( -( X %*% gamma) ) ))
+    f_X <- c(1/(1 + exp(-X %*% gamma)))
     s <- rbinom(n, 1, f_X) # sample
-    e_X <- c(1/(1 + exp( -( X %*% lambda) ) ))
+    e_X <- c(1/(1 + exp(-X %*% lambda)))
     z <- rbinom(n, 1, e_X) # treatment
-    mu_0 <- X %*% beta0
-    mu_1 <- mu_0 + X %*% alpha
-    PATE <- mean(X[s == 0,]%*%alpha)
+    mu_0 <- c(X %*% beta0)
+    mu_1 <- mu_0 + c(X %*% alpha)
+    PATE <- mean(X[s == 0,] %*% alpha)
+  } else if (scenario == "exchange"){
+    f_X <- c(1/(1 + exp(-X %*% gamma)))
+    s <- rbinom(n, 1, f_X) # sample
+    e_X <- c(s/(1 + exp(-X %*% lambda)) + (1 - s)/(1 + exp(-X %*% delta)))
+    z <- rbinom(n, 1, e_X) # treatment
+    mu_0 <- c(s*(X %*% beta0) + (1 - s)*(X %*% beta1))
+    mu_1 <- mu_0 + c(X %*% alpha)
+    PATE <- mean(X[s == 0,] %*% alpha)
   } else if (scenario == "ps-mis") {
-    f_X <- c(1/(1 + exp( -( U %*% gamma) ) ))
+    f_X <- c(1/(1 + exp(-U %*% gamma)))
     s <- rbinom(n, 1, f_X) # sample
-    e_X <- c(1/(1 + exp( -( U %*% lambda ) ) ))
+    e_X <- c(s/(1 + exp(-U %*% lambda)) + (1 - s)/(1 + exp(-U %*% delta)))
     z <- rbinom(n, 1, e_X) # treatment
-    mu_0 <- X %*% beta0
-    mu_1 <- mu_0 + X %*% alpha
-    PATE <- mean(X[s == 0,]%*%alpha)
+    mu_0 <- c(X %*% beta0)
+    mu_1 <- mu_0 + c(X %*% alpha)
+    PATE <- mean(X[s == 0,] %*% alpha)
   } else if (scenario == "ps-exchange") {
-    f_X <- c(1/(1 + exp( -( X %*% gamma) ) ))
+    f_X <- c(1/(1 + exp(-U %*% gamma)))
     s <- rbinom(n, 1, f_X) # sample
-    e_X <- c(s/(1 + exp( -( X %*% lambda) ) ) + (1 - s)/(1 + exp( -( X %*% delta) ) ))
+    e_X <- c(1/(1 + exp(-U %*% lambda)))
     z <- rbinom(n, 1, e_X) # treatment
-    mu_0 <- U %*% beta0
-    mu_1 <- mu_0 + U %*% alpha
-    PATE <- mean(U[s == 0,]%*%alpha)
+    mu_0 <- c(s*(X %*% beta0) + (1 - s)*(X %*% beta1))
+    mu_1 <- mu_0 + c(X %*% alpha)
+    PATE <- mean(X[s == 0,] %*% alpha)
   } else if (scenario == "out-mis"){
-    f_X <- c(1/(1 + exp( -( X %*% gamma) ) ))
+    f_X <- c(1/(1 + exp(-X %*% gamma)))
     s <- rbinom(n, 1, f_X) # sample
-    e_X <- c(1/(1 + exp( -( X %*% lambda) ) ))
+    e_X <- c(1/(1 + exp(-X %*% lambda)))
     z <- rbinom(n, 1, e_X) # treatment
-    mu_0 <- U %*% beta0
-    mu_1 <- mu_0 + U %*% alpha
-    PATE <- mean(U[s == 0,]%*%alpha)
+    mu_0 <- c(s*(U %*% beta0) + (1 - s)*(U %*% beta1))
+    mu_1 <- mu_0 + c(U %*% alpha)
+    PATE <- mean(U[s == 0,] %*% alpha)
   } else if (scenario == "out-exchange"){
-    f_X <- c(1/(1 + exp( -( U %*% gamma) ) ))
+    f_X <- c(1/(1 + exp(-X %*% gamma)))
     s <- rbinom(n, 1, f_X) # sample
-    e_X <- c(1/(1 + exp( -( U %*% lambda) ) ))
+    e_X <- c(s/(1 + exp(-X %*% lambda)) + (1 - s)/(1 + exp(-X %*% delta)))
     z <- rbinom(n, 1, e_X) # treatment
-    mu_0 <- s*(X %*% beta0) + (1 - s)*(X %*% beta1)
-    mu_1 <- mu_0 + X %*% alpha
-    PATE <- mean(X[s == 0,]%*%alpha)
+    mu_0 <- c(U %*% beta0)
+    mu_1 <- mu_0 + c(U %*% alpha)
+    PATE <- mean(U[s == 0,] %*% alpha)
   } else if (scenario == "sample-overlap") {
-    f_X <- c(1/(1 + exp( -( X %*% (4*gamma)) ) ))
+    f_X <- c(1/(1 + exp(-X %*% (4*gamma))))
     s <- rbinom(n, 1, f_X) # sample
-    e_X <- c(1/(1 + exp( -( X %*% lambda) ) ))
+    e_X <- c(1/(1 + exp(-X %*% lambda)))
     z <- rbinom(n, 1, e_X) # treatment
-    mu_0 <- U %*% beta0
-    mu_1 <- mu_0 + U %*% alpha
-    PATE <- mean(U[s == 0,]%*%alpha)
+    mu_0 <- c(U %*% beta0)
+    mu_1 <- mu_0 + c(U %*% alpha)
+    PATE <- mean(U[s == 0,] %*% alpha)
   } else if (scenario == "treat-overlap"){
-    f_X <- c(1/(1 + exp( -( X %*% gamma) ) ))
+    f_X <- c(1/(1 + exp(-X %*% gamma)))
     s <- rbinom(n, 1, f_X) # sample
-    e_X <- c(1/(1 + exp( -( X %*% (4*lambda)) ) ))
+    e_X <- c(1/(1 + exp( -X %*% (4*lambda))))
     z <- rbinom(n, 1, e_X) # treatment
-    mu_0 <- U %*% beta0
-    mu_1 <- mu_0 + U %*% alpha
-    PATE <- mean(U[s == 0,]%*%alpha)
+    mu_0 <- c(U %*% beta0)
+    mu_1 <- mu_0 + c(U %*% alpha)
+    PATE <- mean(U[s == 0,] %*% alpha)
   }
   
   # potential outcomes
@@ -119,7 +127,7 @@ gen_data <- function(n, sig2 = 5, scenario = c("base", "ps-mis", "out-mis", "ps-
 # Fits the balancing weights using a variety of methods
 simfit <- function(idx = 1, simDat, ...) {
   
-  # print(idx)
+  print(idx)
   
   dat <- simDat[,idx]
   PATE <- dat$PATE

@@ -33,9 +33,7 @@ aug <- function(S, Z, Y, X, fusion = FALSE) {
     
   } else {
     
-    treat <- predict(glm(Z ~ ., data = dat_z, 
-                         family = binomial(link = "logit"),
-                         subset = S == 1), 
+    treat <- predict(glm(Z ~ ., data = dat_z, family = binomial(link = "logit"), subset = S == 1), 
                      newdata = dat_z, type = "response")
     ipw <- ifelse(Z == 1, 1/treat, 1/(1-treat))
     fit_0 <- lm(Y ~ ., data = dat_y, subset = Z == 0 & S == 1)
@@ -52,7 +50,7 @@ aug <- function(S, Z, Y, X, fusion = FALSE) {
   
   if (fusion) {
     aug_est <- sum((h1w - h0w) * (Y - mu[,1]))/sum(Z*q*ipw) + mean(mu[S == 0,3] - mu[S == 0,2])
-    eic <- c((h1w - h0w) * (Y - mu[,1]) + I(S == 0)*mu[,3] - I(S == 0)*mu[,2] - aug_est)
+    eic <- c((h1w - h0w) * (Y - mu[,1]) + (I(S == 0)*mu[,3] - I(S == 0)*mu[,2])/mean(I(S == 0)) - aug_est)
   } else {
     aug_est <- sum((h1w - h0w) * (Y - mu[,1]))/sum(S*Z*q*ipw) + mean(mu[S == 0,3] - mu[S == 0,2])
     eic <- c((h1w - h0w) * (Y - mu[,1]) + I(S == 0)*mu[,3] - I(S == 0)*mu[,2] - aug_est)/mean(I(S == 0))

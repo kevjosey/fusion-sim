@@ -10,11 +10,11 @@ source("~/Github/fusion-sim/simfun.R")
 iter <- 1000
 n <- 1000
 sig2 <- 4
-scenario <- "out-exchange"
+scenario <- "exchange"
 
 set.seed(42)
 
-simDat <- replicate(iter, gen_data(n = n, sig2 = sig2, scenario = scenario))
+simDat <- replicate(1000, gen_data(n = n, sig2 = sig2, scenario = scenario))
 
 idx <- 1:iter # simulation iteration index
 estList <- sapply(idx, simfit, simDat = simDat)

@@ -7,8 +7,8 @@ library(parallel)
 
 iter <- 1000
 n <- c(500, 1000, 2000)
-scenario <- c("base", "ps-mis", "out-mis", "ps-exchange",
-              "out-exchange", "sample-overlap", "treat-overlap")
+scenario <- c("base", "exchange", "sample-overlap", "treat-overlap",
+              "ps-mis", "out-mis","ps-exchange", "out-exchange")
 
 simConditions <- expand.grid(n, scenario, stringsAsFactors = FALSE)
 names(simConditions) <- c("n", "scenario")
@@ -77,7 +77,7 @@ mclapply(index, function(i,...) {
   save(tau, file = tauFilename)
   save(cp, file = coverageFilename)
   
-}, mc.cores = 21)
+}, mc.cores = 24)
 
 stop <- Sys.time()
 stop - start
@@ -163,7 +163,7 @@ dat2$ind <- factor(dat2$ind,
 p2 <- ggplot(dat2) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
-  ylim(-5, 5) +
+  ylim(-2, 2) +
   xlab("") +
   ggtitle("Treatment & Sample Misspecification") +
   geom_hline(yintercept = 0, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
@@ -199,7 +199,7 @@ dat4$ind <- factor(dat4$ind,
 p4 <- ggplot(dat4) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
-  ylim(-5, 5)  +
+  ylim(-2, 2)  +
   xlab("") +
   ggtitle("Potential Outcome Exchangeability Violation") +
   geom_hline(yintercept = 0, colour = "red", linetype = 3, show.legend = FALSE) + 
