@@ -7,8 +7,10 @@ library(parallel)
 
 iter <- 1000
 n <- c(500, 1000, 2000)
-scenario <- c("base", "exchange", "sample-overlap", "treat-overlap",
-              "ps-mis", "out-mis","ps-exchange", "out-exchange")
+scenario <- c("base", "exchange",
+              "ps-mis","out-mis", 
+              "prognostic","instrument",
+              "sample-overlap", "treat-overlap")
 
 simConditions <- expand.grid(n, scenario, stringsAsFactors = FALSE)
 names(simConditions) <- c("n", "scenario")
@@ -57,15 +59,14 @@ mclapply(index, function(i,...) {
   se_tmp <- do.call(rbind, estList[2,])
   tau_tmp[is.infinite(tau_tmp) | is.nan(tau_tmp)] <- NA
   se_tmp[is.infinite(se_tmp) | is.nan(se_tmp)] <- NA
-  colnames(tau_tmp) <- colnames(se_tmp) <- c("TMLE-T", "AUG-T", "CAL-T", "TMLE-F", "AUG-F","CAL-F")
+  colnames(tau_tmp) <- colnames(se_tmp) <- c("TMLE-T", "AUG-T", "CAL-T", "AUG-F","CAL-F")
   
-  cp_tmp <- matrix(NA, nrow = iter, ncol = 6)
+  cp_tmp <- matrix(NA, nrow = iter, ncol = 5)
   cp_tmp[,1] <- as.numeric(tau_tmp[,1] - se_tmp[,1]*1.96 <= PATE & tau_tmp[,1] + se_tmp[,1]*1.96 >= PATE)
   cp_tmp[,2] <- as.numeric(tau_tmp[,2] - se_tmp[,2]*1.96 <= PATE & tau_tmp[,2] + se_tmp[,2]*1.96 >= PATE)
   cp_tmp[,3] <- as.numeric(tau_tmp[,3] - se_tmp[,3]*1.96 <= PATE & tau_tmp[,3] + se_tmp[,3]*1.96 >= PATE)
   cp_tmp[,4] <- as.numeric(tau_tmp[,4] - se_tmp[,4]*1.96 <= PATE & tau_tmp[,4] + se_tmp[,4]*1.96 >= PATE)
   cp_tmp[,5] <- as.numeric(tau_tmp[,5] - se_tmp[,5]*1.96 <= PATE & tau_tmp[,5] + se_tmp[,5]*1.96 >= PATE)
-  cp_tmp[,6] <- as.numeric(tau_tmp[,6] - se_tmp[,6]*1.96 <= PATE & tau_tmp[,6] + se_tmp[,6]*1.96 >= PATE)
   names(cp_tmp) <- colnames(tau_tmp)
   
   tau <- data.frame(misc_out, tau_tmp, stringsAsFactors = FALSE)
@@ -91,12 +92,12 @@ dir_1 <- "~/Dropbox/JoseyDissertation/Data/fusion/tauHat/"
 dir_2 <- "~/Dropbox/JoseyDissertation/Data/fusion/coverageProb/"
 
 files <- list.files(dir_1)
-out_1 <- matrix("", nrow = length(files), ncol = 9)
-out_2 <- matrix("", nrow = length(files), ncol = 9)
-out_3 <- matrix("", nrow = length(files), ncol = 9)
+out_1 <- matrix("", nrow = length(files), ncol = 8)
+out_2 <- matrix("", nrow = length(files), ncol = 8)
+out_3 <- matrix("", nrow = length(files), ncol = 8)
 
 colnames(out_1) <- colnames(out_2) <- colnames(out_3) <- 
-  c("n", "scenario", "PATE",  "TMLE-T", "AUG-T", "CAL-T", "TMLE-F", "AUG-F", "CAL-F")
+  c("n", "scenario", "PATE",  "TMLE-T", "AUG-T", "CAL-T", "AUG-F", "CAL-F")
 j <- 1
 
 for (fdx in files) {
@@ -135,13 +136,52 @@ for (fdx in files) {
   
 }
 
+load("~/Dropbox/JoseyDissertation/Data/fusion/tauHat/_1000_base_.RData")
+dat0 <- stack(as.data.frame(tau[,4:ncol(tau)] - mean(tau[,3])))
+dat0$ind <- factor(dat0$ind, 
+                   levels = c("TMLE.T", "AUG.T", "CAL.T",
+                              "AUG.F", "CAL.F"),
+                   labels = c("TMLE-T", "AUG-T", "CAL-T",
+                              "AUG-F", "CAL-F"))
+
+p0 <- ggplot(dat0) + 
+  geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
+  ylab("Bias") +
+  ylim(-5, 5)  +
+  xlab("") +
+  ggtitle("Baseline") +
+  geom_hline(yintercept = 0, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
+  guides(fill =  FALSE) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+load("~/Dropbox/JoseyDissertation/Data/fusion/tauHat/_1000_exchange_.RData")
+dat00 <- stack(as.data.frame(tau[,4:ncol(tau)] - mean(tau[,3])))
+dat00$ind <- factor(dat00$ind, 
+                   levels = c("TMLE.T", "AUG.T", "CAL.T",
+                              "AUG.F", "CAL.F"),
+                   labels = c("TMLE-T", "AUG-T", "CAL-T",
+                              "AUG-F", "CAL-F"))
+
+p00 <- ggplot(dat00) + 
+  geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
+  ylab("Bias") +
+  ylim(-5, 5)  +
+  xlab("") +
+  ggtitle("Exchangeability Violations") +
+  geom_hline(yintercept = 0, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
+  guides(fill =  FALSE) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
 load("~/Dropbox/JoseyDissertation/Data/fusion/tauHat/_1000_out-mis_.RData")
 dat1 <- stack(as.data.frame(tau[,4:ncol(tau)] - mean(tau[,3])))
 dat1$ind <- factor(dat1$ind, 
                    levels = c("TMLE.T", "AUG.T", "CAL.T",
-                              "TMLE.F", "AUG.F", "CAL.F"),
+                              "AUG.F", "CAL.F"),
                    labels = c("TMLE-T", "AUG-T", "CAL-T",
-                              "TMLE-F", "AUG-F", "CAL-F"))
+                              "AUG-F", "CAL-F"))
+
 p1 <- ggplot(dat1) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
@@ -157,9 +197,9 @@ load("~/Dropbox/JoseyDissertation/Data/fusion/tauHat/_1000_ps-mis_.RData")
 dat2 <- stack(as.data.frame(tau[,4:ncol(tau)] - mean(tau[,3])))
 dat2$ind <- factor(dat2$ind, 
                    levels = c("TMLE.T", "AUG.T", "CAL.T",
-                              "TMLE.F", "AUG.F", "CAL.F"),
+                              "AUG.F", "CAL.F"),
                    labels = c("TMLE-T", "AUG-T", "CAL-T",
-                              "TMLE-F", "AUG-F", "CAL-F"))
+                              "AUG-F", "CAL-F"))
 p2 <- ggplot(dat2) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
@@ -171,37 +211,37 @@ p2 <- ggplot(dat2) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
-load("~/Dropbox/JoseyDissertation/Data/fusion/tauHat/_1000_ps-exchange_.RData")
+load("~/Dropbox/JoseyDissertation/Data/fusion/tauHat/_1000_instrument_.RData")
 dat3 <- stack(as.data.frame(tau[,4:ncol(tau)] - mean(tau[,3])))
 dat3$ind <- factor(dat3$ind, 
                    levels = c("TMLE.T", "AUG.T", "CAL.T",
-                              "TMLE.F", "AUG.F", "CAL.F"),
+                              "AUG.F", "CAL.F"),
                    labels = c("TMLE-T", "AUG-T", "CAL-T",
-                              "TMLE-F", "AUG-F", "CAL-F"))
+                              "AUG-F", "CAL-F"))
 p3 <- ggplot(dat3) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
   ylim(-5, 5)  +
   xlab("") +
-  ggtitle("Propensity Score Exchangeability Violation") +
+  ggtitle("Instrumental Sampling Variable") +
   geom_hline(yintercept = 0, colour = "red", linetype = 3, size = 1, show.legend = FALSE) + 
   guides(fill =  FALSE) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
 
-load("~/Dropbox/JoseyDissertation/Data/fusion/tauHat/_1000_out-exchange_.RData")
+load("~/Dropbox/JoseyDissertation/Data/fusion/tauHat/_1000_prognostic_.RData")
 dat4 <- stack(as.data.frame(tau[,4:ncol(tau)] - mean(tau[,3])))
 dat4$ind <- factor(dat4$ind,
                    levels = c("TMLE.T", "AUG.T", "CAL.T",
-                              "TMLE.F", "AUG.F", "CAL.F"),
+                              "AUG.F", "CAL.F"),
                    labels = c("TMLE-T", "AUG-T", "CAL-T",
-                              "TMLE-F", "AUG-F", "CAL-F"))
+                              "AUG-F", "CAL-F"))
 p4 <- ggplot(dat4) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
   ylim(-2, 2)  +
   xlab("") +
-  ggtitle("Potential Outcome Exchangeability Violation") +
+  ggtitle("Prognostic Sampling Variable") +
   geom_hline(yintercept = 0, colour = "red", linetype = 3, show.legend = FALSE) + 
   guides(fill =  FALSE) +
   theme_bw() +
@@ -211,13 +251,13 @@ load("~/Dropbox/JoseyDissertation/Data/fusion/tauHat/_1000_sample-overlap_.RData
 dat5 <- stack(as.data.frame(tau[,4:ncol(tau)] - mean(tau[,3])))
 dat5$ind <- factor(dat5$ind,
                    levels = c("TMLE.T", "AUG.T", "CAL.T",
-                              "TMLE.F", "AUG.F", "CAL.F"),
+                              "AUG.F", "CAL.F"),
                    labels = c("TMLE-T", "AUG-T", "CAL-T",
-                              "TMLE-F", "AUG-F", "CAL-F"))
+                              "AUG-F", "CAL-F"))
 p5 <- ggplot(dat5) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
-  ylim(-15, 15)  +
+  ylim(-20, 20)  +
   xlab("") +
   ggtitle("Sample Overlap Violation") +
   geom_hline(yintercept = 0, colour = "red", linetype = 3, show.legend = FALSE) + 
@@ -229,9 +269,9 @@ load("~/Dropbox/JoseyDissertation/Data/fusion/tauHat/_1000_treat-overlap_.RData"
 dat6 <- stack(as.data.frame(tau[,4:ncol(tau)] - mean(tau[,3])))
 dat6$ind <- factor(dat6$ind,
                    levels = c("TMLE.T", "AUG.T", "CAL.T",
-                              "TMLE.F", "AUG.F", "CAL.F"),
+                              "AUG.F", "CAL.F"),
                    labels = c("TMLE-T", "AUG-T", "CAL-T",
-                              "TMLE-F", "AUG-F", "CAL-F"))
+                              "AUG-F", "CAL-F"))
 p6 <- ggplot(dat6) + 
   geom_boxplot(aes(x = ind, y = values, fill = ind)) + 
   ylab("Bias") +
@@ -249,7 +289,7 @@ png("~/Dropbox/JoseyDissertation/Output/fusion/Figures/ATE_plot.png",
     res = 300, 
     units = "px")
 
-grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 2, nrow = 3)
+grid.arrange(p0, p00, p1, p2, p3, p4, p5, p6, ncol = 2, nrow = 4)
 
 dev.off()
 

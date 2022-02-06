@@ -12,9 +12,9 @@ calib <- function(S, Z, Y, X, fusion = FALSE) {
   
   if (fusion) {
   
-    A <- cbind(as.matrix((2*Z - 1)*X), as.matrix(Z*X), as.matrix(S*X))
-    b <- c(rep(0,m), n*theta, n_1*theta)
-    fit_f <- cfit(cmat = A, target = b, distance = "entropy")
+    A <- cbind(as.matrix(S*Z*X), as.matrix(S*(1 - Z)*X), as.matrix((1 - S)*Z*X), as.matrix((1 - S)*(1 - Z)*X))
+    b <- c(n_1*theta, n_1*theta, n_0*theta, n_0*theta)
+    fit_f <- cfit(cmat = A, target = b)
     est_f <- if(fit_f$converged) {
       fusion_estimate(obj = fit_f, theta = theta, S = S, X = X, Z = Z, Y = Y) 
     } else { list(estimate = NA, variance = NA) }
@@ -24,8 +24,8 @@ calib <- function(S, Z, Y, X, fusion = FALSE) {
   } else {
     
     A <- cbind(as.matrix(S*(2*Z - 1)*X), as.matrix(S*X))
-    b <- c(rep(0,m), n_0*theta)
-    fit_t <- cfit(cmat = A, target = b, distance = "entropy")
+    b <- c(rep(0,m), n_1*theta)
+    fit_t <- cfit(cmat = A, target = b)
     est_t <- if(fit_t$converged) {
       transport_estimate(obj = fit_t, theta = theta, S = S, X = X, Z1 = Z1, Y1 = Y1)
     } else{ list(estimate = NA, variance = NA) }
@@ -37,7 +37,6 @@ calib <- function(S, Z, Y, X, fusion = FALSE) {
 }
 
 cfit <- function(cmat, target,
-                 distance = c("entropy", "binary", "shifted"),
                  base_weights = NULL,
                  coefs_init = NULL,
                  optim_ctrl = list(maxit = 500, reltol = 1e-10),
@@ -49,27 +48,10 @@ cfit <- function(cmat, target,
   if (!is.vector(target))
     stop("target must be a vector")
   
-  if (!(distance %in% c("entropy", "binary", "shifted")))
-    stop("distance must be either \"entropy\", \"binary\", or \"shifted\"")
-  
-  if (distance == "binary") {
-    fn <- match.fun(lagrange_bent)
-  } else if (distance == "shifted") {
-    fn <- match.fun(lagrange_sent)
-  } else { # distance == "entropy"
-    fn <- match.fun(lagrange_ent)
-  }
+  fn <- match.fun(lagrange_ent)
   
   if (is.null(base_weights)) { # initialize base_weights
-    
-    if (distance == "binary") {
-      base_weights <- rep(1/2, nrow(cmat))
-    } else if (distance == "shifted") {
-      base_weights <- rep(2, nrow(cmat))
-    } else { # distance == "entropy"
-      base_weights <- rep(1, nrow(cmat))
-    }
-    
+    base_weights <- rep(1, nrow(cmat))
   } else if (length(base_weights) != nrow(cmat)) { 
     stop("length(base_weights) != sample size")
   }
@@ -100,21 +82,13 @@ cfit <- function(cmat, target,
   
   converged <- ifelse(opt$convergence == 0, TRUE, FALSE)
   coefs <- opt$par
-  
-  if (distance == "binary") {
-    weights <- c( base_weights / (base_weights + (1 - base_weights)*exp(cmat %*% coefs)) )
-  } else if (distance == "shifted") {
-    weights <- c( 1 + (base_weights - 1)*exp(-cmat %*% coefs) )
-  } else { # distance == "entropy"
-    weights <- c( base_weights*exp(-cmat %*% coefs) )
-  }
+  weights <- c( base_weights*exp(-cmat %*% coefs) )
   
   out <- list(weights = weights,
               coefs = coefs,
               converged = converged,
               cmat = cmat,
               target = target,
-              distance = distance,
               base_weights = base_weights, 
               optim_ctrl = optim_ctrl)
   
@@ -137,13 +111,14 @@ esteq_transport <- function(S, X, Y, Z, p, base_weights, theta, tau) {
 
 esteq_fusion <- function(S, X, Y, Z, p, base_weights, theta, tau) {
   
-  eq1 <- (2*Z - 1)*p*X
-  eq2 <- Z*p*X - theta
-  eq3 <- S*p*X - theta
-  eq4 <- (1 - S)*(base_weights*X - theta)
-  eq5 <- p*(Z*(Y - tau) - (1 - Z)*Y)
+  eq1 <- S*(Z*p*X - theta)
+  eq2 <- S*((1 - Z)*p*X - theta)
+  eq3 <- (1 - S)*(Z*p*X - theta)
+  eq4 <- (1 - S)*((1 - Z)*p*X - theta)
+  eq5 <- (1 - S)*(base_weights*X - theta)
+  eq6 <- p*(Z*(Y - tau) - (1 - Z)*Y)
   
-  eq <- c(eq1, eq2, eq3, eq4, eq5) 
+  eq <- c(eq1, eq2, eq3, eq4, eq5, eq6) 
   return(eq)
   
 }
@@ -152,14 +127,6 @@ lagrange_ent <- function(coefs, cmat, target, base_weights) {
   
   temp <- sum(base_weights*exp(-cmat %*% coefs))
   out <- temp + sum(target * coefs)
-  return(out)
-  
-}
-
-lagrange_sent <- function(coefs, cmat, target, base_weights) {
-  
-  temp <- sum(cmat %*% coefs - (base_weights - 1)*exp(-cmat %*% coefs))
-  out <- -temp + sum(target * coefs)
   return(out)
   
 }
@@ -260,19 +227,21 @@ fusion_estimate <- function(obj, theta, S, X, Y, Z, ...) {
 
   tau <- sum(weights*(2*Z - 1)*Y)/sum(Z*weights)
   
-  U <- matrix(0, ncol = 4*m, nrow = 4*m)
-  v <- rep(0, times = 4*m + 1)
-  meat <- matrix(0, ncol = 4*m + 1, nrow = 4*m + 1)
+  U <- matrix(0, ncol = 5*m, nrow = 5*m)
+  v <- rep(0, times = 5*m + 1)
+  meat <- matrix(0, ncol = 5*m + 1, nrow = 5*m + 1)
   
   for (i in 1:n) {
     
-    U[1:(3*m),1:(3*m)] <- U[1:(3*m),1:(3*m)] - weights[i] * A[i,] %*% t(A[i,])
-    U[(m + 1):(2*m),(3*m + 1):(4*m)] <- U[(m + 1):(2*m),(3*m + 1):(4*m)] - diag(1, m, m)
-    U[(2*m + 1):(3*m),(3*m + 1):(4*m)] <- U[(2*m + 1):(3*m),(3*m + 1):(4*m)] - diag(S[i], m, m)
-    U[(3*m + 1):(4*m),(3*m + 1):(4*m)] <- U[(3*m + 1):(4*m),(3*m + 1):(4*m)] - diag(1 - S[i], m, m)
+    U[1:(4*m),1:(4*m)] <- U[1:(4*m),1:(4*m)] - weights[i] * A[i,] %*% t(A[i,])
+    U[1:m,(4*m + 1):(5*m)] <- U[1:m,(4*m + 1):(5*m)] - diag(S[i], m, m)
+    U[(m + 1):(2*m),(4*m + 1):(5*m)] <- U[(m + 1):(2*m),(4*m + 1):(5*m)] - diag(S[i], m, m)
+    U[(2*m + 1):(3*m),(4*m + 1):(5*m)] <- U[(2*m + 1):(3*m),(4*m + 1):(5*m)] - diag(1 - S[i], m, m)
+    U[(3*m + 1):(4*m),(4*m + 1):(5*m)] <- U[(3*m + 1):(4*m),(4*m + 1):(5*m)] - diag(1 - S[i], m, m)
+    U[(4*m + 1):(5*m),(4*m + 1):(5*m)] <- U[(4*m + 1):(5*m),(4*m + 1):(5*m)] - diag(1 - S[i], m, m)
     
-    v[1:(3*m)] <- v[1:(3*m)] - weights[i]*(2*Z[i] - 1)*(Y[i] - Z[i]*tau)*A[i,]
-    v[4*m + 1] <- v[4*m + 1] - weights[i]*Z[i]
+    v[1:(4*m)] <- v[1:(4*m)] - weights[i]*(2*Z[i] - 1)*(Y[i] - Z[i]*tau)*A[i,]
+    v[5*m + 1] <- v[5*m + 1] - weights[i]*Z[i]
     
     meat <- meat +  tcrossprod(esteq_fusion(X = X[i,], Y = Y[i], Z = Z[i], S = S[i], 
                                             p = weights[i], base_weights = base_weights[i], 
@@ -280,9 +249,9 @@ fusion_estimate <- function(obj, theta, S, X, Y, Z, ...) {
     
   }
   
-  invbread <- matrix(0, nrow = 4*m + 1, ncol = 4*m + 1)
-  invbread[1:(4*m),1:(4*m)] <- U
-  invbread[4*m + 1, ] <- v
+  invbread <- matrix(0, nrow = 5*m + 1, ncol = 5*m + 1)
+  invbread[1:(5*m),1:(5*m)] <- U
+  invbread[5*m + 1, ] <- v
   
   bread <- try(solve(invbread), silent = TRUE)
   
@@ -294,7 +263,7 @@ fusion_estimate <- function(obj, theta, S, X, Y, Z, ...) {
   } else {
     
     sandwich <- bread %*% meat %*% t(bread)
-    variance <- sandwich[4*m + 1, 4*m + 1]
+    variance <- sandwich[5*m + 1, 5*m + 1]
     
   }
   
