@@ -141,13 +141,13 @@ simfit <- function(idx = 1, simDat, ...) {
   
   # Calibration - Transport
 
-  cal_t <- try( calib(S = S, Y = Y, Z = Z, X = X, fusion = FALSE), silent = TRUE )
+  cal_t <- try( calibrate(S = S, Y = Y, Z = Z, X = X, fusion = FALSE), silent = TRUE )
   est_t <- ifelse(!inherits(cal_t, "try-error") & cal_t$estimate < 10 & cal_t$estimate > -15, cal_t$estimate, NA)
   var_t <- ifelse(!inherits(cal_t, "try-error") & cal_t$estimate < 10 & cal_t$estimate > -15, cal_t$variance, NA)
   
   # Calibration - Fusion
   
-  cal_f <- try( calib(S = S, Y = Y, Z = Z, X = X, fusion = TRUE), silent = TRUE )
+  cal_f <- try( calibrate(S = S, Y = Y, Z = Z, X = X, fusion = TRUE), silent = TRUE )
   est_f <- ifelse(!inherits(cal_f, "try-error") & cal_f$estimate < 10 & cal_f$estimate > -15, cal_f$estimate, NA)
   var_f <- ifelse(!inherits(cal_f, "try-error") & cal_f$estimate < 10 & cal_f$estimate > -15, cal_f$variance, NA)
   
@@ -159,13 +159,13 @@ simfit <- function(idx = 1, simDat, ...) {
   
   # Augmented - Transport
   
-  aug_t <- try( aug(S = S, Y = Y, Z = Z, X = X, fusion = FALSE), silent = TRUE )
+  aug_t <- try( augment(S = S, Y = Y, Z = Z, X = X, fusion = FALSE), silent = TRUE )
   aug_est_t <- ifelse(!inherits(aug_t, "try-error") & aug_t$estimate < 10 & aug_t$estimate > -15, aug_t$estimate, NA)
   aug_var_t <- ifelse(!inherits(aug_t, "try-error") & aug_t$estimate < 10 & aug_t$estimate > -15, aug_t$variance, NA)
   
   # Augmented - Fusion
   
-  aug_f <- try( aug(S = S, Y = Y, Z = Z, X = X, fusion = TRUE), silent = TRUE )
+  aug_f <- try( augment(S = S, Y = Y, Z = Z, X = X, fusion = TRUE), silent = TRUE )
   aug_est_f <- ifelse(!inherits(aug_f, "try-error") & aug_f$estimate < 10 & aug_f$estimate > -15, aug_f$estimate, NA)
   aug_var_f <- ifelse(!inherits(aug_f, "try-error") & aug_f$estimate < 10 & aug_f$estimate > -15, aug_f$variance, NA)
   

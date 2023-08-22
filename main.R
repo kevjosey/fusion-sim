@@ -25,7 +25,7 @@ library(survey)
 
 source("~/Github/fusion-sim/transport.R")
 source("~/Github/fusion-sim/tmle.R")
-source("~/Github/fusion-sim/aug.R")
+source("~/Github/fusion-sim/augment.R")
 source("~/Github/fusion-sim/simfun.R")
 
 start <- Sys.time()

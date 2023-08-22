@@ -2,9 +2,9 @@ library(sandwich)
 library(survey)
 library(SuperLearner)
 
-source("~/Github/fusion-sim/transport.R")
+source("~/Github/fusion-sim/calibrate.R")
 source("~/Github/fusion-sim/tmle.R")
-source("~/Github/fusion-sim/aug.R")
+source("~/Github/fusion-sim/augment.R")
 source("~/Github/fusion-sim/simfun.R")
 
 iter <- 1000

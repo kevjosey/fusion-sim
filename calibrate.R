@@ -1,4 +1,4 @@
-calib <- function(S, Z, Y, X, fusion = FALSE) {
+calibrate <- function(S, Z, Y, X, fusion = FALSE) {
   
   Y1 <- Y[S == 1]
   Z1 <- Z[S == 1]

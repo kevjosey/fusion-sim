@@ -1,4 +1,4 @@
-aug <- function(S, Z, Y, X, fusion = FALSE) {
+augment <- function(S, Z, Y, X, fusion = FALSE) {
   
   idx <- which(apply(X, 2, var) != 0) # remove intercept
   dat_z <- data.frame(Z = Z, unname(X[,idx]))
